@@ -5,13 +5,15 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js';
 
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.14';
+const VERSION='0.2.15';
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
+const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
 const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
@@ -357,7 +359,8 @@ async function loadFiles(fileList){
 
 function newProject(){
   if(models.length&&!confirm('Opret nyt projekt og fjern modellerne fra arbejdsfladen?'))return;
-  cancelCrop();transform.detach();models.forEach(m=>scene.remove(m.root));models.length=0;selectedModel=null;modelNumber=1;releaseAllObjectUrls();
+  cancelCrop();clearMeasurement();transform.detach();models.forEach(m=>scene.remove(m.root));models.length=0;selectedModel=null;modelNumber=1;releaseAllObjectUrls();
+  savedViews=[];renderSavedViews();
   undoStack.length=0;redoStack.length=0;updateHistoryButtons();rebuildModelList();syncTransformFields();resetViewToOrigin();setStatus('Nyt tomt projekt – centrum (0,0,0).');
 }
 
@@ -509,9 +512,49 @@ function resize(){
 
 
 // ---------- Saved views ----------
-function snapshotView(){return {name:'',ortho:camera.isOrthographicCamera,position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),up:camera.up.toArray(),target:orbit.target.toArray(),zoom:camera.zoom,fov:camera.isPerspectiveCamera?camera.fov:null,ratio:$('exportRatio').value,width:$('exportWidth').value,height:$('exportHeight').value};}
+function snapshotView(){return {
+  name:'',
+  ortho:camera.isOrthographicCamera,
+  position:camera.position.toArray(),
+  quaternion:camera.quaternion.toArray(),
+  up:camera.up.toArray(),
+  target:orbit.target.toArray(),
+  zoom:camera.zoom,
+  fov:camera.isPerspectiveCamera?camera.fov:null,
+  near:camera.near,
+  far:camera.far,
+  orthoBounds:camera.isOrthographicCamera?{left:camera.left,right:camera.right,top:camera.top,bottom:camera.bottom}:null,
+  ratio:$('exportRatio').value,
+  width:$('exportWidth').value,
+  height:$('exportHeight').value
+};}
 function saveView(){const s=snapshotView(),suggested=`Visning ${savedViews.length+1}`;const n=prompt('Navn på visningen:',suggested);if(n===null)return;s.name=n.trim()||suggested;savedViews.push(s);renderSavedViews();setStatus(`Visning "${s.name}" gemt.`)}
-function restoreView(i){const s=savedViews[i];if(!s)return;if(camera.isOrthographicCamera!==s.ortho)switchCamera(s.ortho);camera.position.fromArray(s.position);camera.quaternion.fromArray(s.quaternion);camera.up.fromArray(s.up);orbit.target.fromArray(s.target);camera.zoom=s.zoom||1;if(camera.isPerspectiveCamera&&s.fov)camera.fov=s.fov;camera.updateProjectionMatrix();orbit.update();$('exportRatio').value=s.ratio;$('exportWidth').value=s.width;$('exportHeight').value=s.height;updateExportFrame();setStatus(`Visning "${s.name}" hentet.`)}
+function applyViewState(s){
+  if(!s)return;
+  if(camera.isOrthographicCamera!==s.ortho)switchCamera(s.ortho);
+  camera.position.fromArray(s.position);
+  camera.quaternion.fromArray(s.quaternion);
+  camera.up.fromArray(s.up);
+  orbit.target.fromArray(s.target);
+  camera.zoom=s.zoom||1;
+  if(camera.isPerspectiveCamera&&s.fov)camera.fov=s.fov;
+  if(Number.isFinite(s.near))camera.near=s.near;
+  if(Number.isFinite(s.far))camera.far=s.far;
+  if(camera.isOrthographicCamera&&s.orthoBounds){
+    camera.left=s.orthoBounds.left;
+    camera.right=s.orthoBounds.right;
+    camera.top=s.orthoBounds.top;
+    camera.bottom=s.orthoBounds.bottom;
+  }
+  camera.updateProjectionMatrix();
+  orbit.update();
+  if(s.ratio!=null)$('exportRatio').value=s.ratio;
+  if(s.width!=null)$('exportWidth').value=s.width;
+  if(s.height!=null)$('exportHeight').value=s.height;
+  updateExportFrame();
+  updateExportAnnotations();
+}
+function restoreView(i){const s=savedViews[i];if(!s)return;applyViewState(s);setStatus(`Visning "${s.name}" hentet.`)}
 function deleteView(i){savedViews.splice(i,1);renderSavedViews()}
 function clearViews(){if(!savedViews.length)return;if(confirm('Ryd alle gemte visninger?')){savedViews=[];renderSavedViews();setStatus('Gemte visninger ryddet.')}}
 function renderSavedViews(){const list=$('savedViewsList');if(!list)return;list.innerHTML='';if(!savedViews.length){list.innerHTML='<p class="muted small">Ingen gemte visninger.</p>';return}savedViews.forEach((v,i)=>{const row=document.createElement('div');row.className='saved-view-row';const n=document.createElement('div');n.className='saved-view-name';n.textContent=v.name;const go=document.createElement('button');go.textContent='Hent';go.onclick=()=>restoreView(i);const del=document.createElement('button');del.textContent='×';del.onclick=()=>deleteView(i);row.append(n,go,del);list.append(row)})}
@@ -785,6 +828,240 @@ async function shareImage(){
   setStatus('Deling understøttes ikke her – PNG blev gemt i stedet.');
 }
 
+
+// ---------- Project files (.archaeoplan) ----------
+const PROJECT_FORMAT='ArchaeoPlanProject';
+const PROJECT_FORMAT_VERSION=1;
+
+function safeProjectName(name){
+  return (name||'ArchaeoPlan-projekt')
+    .replace(/\.archaeoplan$/i,'')
+    .replace(/[\\/:*?"<>|]+/g,'-')
+    .trim()||'ArchaeoPlan-projekt';
+}
+function cloneSerializableView(s){
+  return JSON.parse(JSON.stringify(s));
+}
+function currentProjectSettings(){
+  return {
+    gridVisible:grid.visible,
+    selectedIndex:selectedModel?models.indexOf(selectedModel):-1,
+    currentView:cloneSerializableView(snapshotView()),
+    savedViews:savedViews.map(cloneSerializableView),
+    export:{
+      frameVisible:exportFrameVisible,
+      ratio:$('exportRatio').value,
+      preset:$('exportPreset').value,
+      width:$('exportWidth').value,
+      height:$('exportHeight').value,
+      showScaleBar:$('showScaleBar').checked,
+      scaleBarLength:$('scaleBarLength').value,
+      scaleBarPosition:$('scaleBarPosition').value,
+      showNorthArrow:$('showNorthArrow').checked,
+      northAngle:$('northAngle').value,
+      northPosition:$('northPosition').value
+    },
+    measurement:measurePoints.map(p=>p.toArray())
+  };
+}
+function modelMetadata(m,index){
+  return {
+    file:`models/model-${String(index+1).padStart(3,'0')}.glb`,
+    name:m.name,
+    cropped:!!m.cropped,
+    visible:m.root.visible,
+    locked:!!m.root.userData.locked,
+    position:m.root.position.toArray(),
+    quaternion:m.root.quaternion.toArray(),
+    scale:m.root.scale.toArray()
+  };
+}
+function exportRootAsGlb(root){
+  return new Promise((resolve,reject)=>{
+    const clone=root.clone(true);
+    clone.visible=true;
+    clone.position.set(0,0,0);
+    clone.quaternion.identity();
+    clone.scale.set(1,1,1);
+    clone.updateMatrixWorld(true);
+    const exporter=new GLTFExporter();
+    exporter.parse(
+      clone,
+      result=>resolve(result),
+      error=>reject(error),
+      {binary:true,onlyVisible:false,maxTextureSize:4096}
+    );
+  });
+}
+async function saveProject(){
+  if(!models.length){
+    setStatus('Der er ingen modeller at gemme i projektet.');
+    return;
+  }
+  const defaultName=`ArchaeoPlan-${new Date().toISOString().slice(0,10)}`;
+  const requested=window.prompt('Navn på projektfilen:',defaultName);
+  if(requested===null)return;
+  const filename=safeProjectName(requested)+'.archaeoplan';
+
+  try{
+    transform.detach();
+    setStatus('Forbereder projekt…');
+    const manifest={
+      format:PROJECT_FORMAT,
+      formatVersion:PROJECT_FORMAT_VERSION,
+      appVersion:VERSION,
+      created:new Date().toISOString(),
+      models:[],
+      settings:currentProjectSettings()
+    };
+    const archive={};
+
+    for(let i=0;i<models.length;i++){
+      const m=models[i];
+      setStatus(`Gemmer projekt: model ${i+1} af ${models.length}…`);
+      const glb=await exportRootAsGlb(m.root);
+      const meta=modelMetadata(m,i);
+      manifest.models.push(meta);
+      archive[meta.file]=new Uint8Array(glb);
+      await new Promise(r=>setTimeout(r,0));
+    }
+
+    archive['project.json']=strToU8(JSON.stringify(manifest));
+    setStatus('Pakker projektfil…');
+    const packed=zipSync(archive,{level:0});
+    const blob=new Blob([packed],{type:'application/zip'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+
+    if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root);
+    setStatus(`Projekt gemt: ${filename}`);
+  }catch(err){
+    console.error(err);
+    if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root);
+    setStatus(`Kunne ikke gemme projekt: ${err.message||err}`);
+  }
+}
+function parseGlbBytes(bytes){
+  return new Promise((resolve,reject)=>{
+    const loader=new GLTFLoader();
+    const buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
+    loader.parse(buffer,'',gltf=>resolve(gltf.scene),reject);
+  });
+}
+function clearProjectWorkspace(){
+  cancelCrop();
+  clearMeasurement();
+  transform.detach();
+  models.forEach(m=>scene.remove(m.root));
+  models.length=0;
+  selectedModel=null;
+  modelNumber=1;
+  releaseAllObjectUrls();
+  savedViews=[];
+  undoStack.length=0;
+  redoStack.length=0;
+  updateHistoryButtons();
+}
+function restoreProjectSettings(settings){
+  if(!settings)return;
+  grid.visible=settings.gridVisible!==false;
+  $('gridToggle').checked=grid.visible;
+
+  savedViews=Array.isArray(settings.savedViews)?settings.savedViews:[];
+  renderSavedViews();
+
+  const ex=settings.export||{};
+  if(ex.ratio!=null)$('exportRatio').value=ex.ratio;
+  if(ex.preset!=null)$('exportPreset').value=ex.preset;
+  if(ex.width!=null)$('exportWidth').value=ex.width;
+  if(ex.height!=null)$('exportHeight').value=ex.height;
+  $('showScaleBar').checked=!!ex.showScaleBar;
+  if(ex.scaleBarLength!=null)$('scaleBarLength').value=ex.scaleBarLength;
+  if(ex.scaleBarPosition!=null)$('scaleBarPosition').value=ex.scaleBarPosition;
+  $('showNorthArrow').checked=!!ex.showNorthArrow;
+  if(ex.northAngle!=null)$('northAngle').value=ex.northAngle;
+  if(ex.northPosition!=null)$('northPosition').value=ex.northPosition;
+
+  exportFrameVisible=!!ex.frameVisible;
+  exportFrame.classList.toggle('active',exportFrameVisible);
+  $('toggleExportFrameButton').textContent=exportFrameVisible?'Skjul eksport-ramme':'Vis eksport-ramme';
+  updateExportFrame();
+
+  if(settings.currentView)applyViewState(settings.currentView);
+
+  const selectedIndex=Number.isInteger(settings.selectedIndex)?settings.selectedIndex:-1;
+  selectModel(selectedIndex>=0&&selectedIndex<models.length?models[selectedIndex]:(models[0]||null));
+
+  clearMeasurement();
+  if(Array.isArray(settings.measurement)){
+    for(const p of settings.measurement.slice(0,2)){
+      if(Array.isArray(p)&&p.length>=3)addMeasurePoint(new THREE.Vector3(p[0],p[1],p[2]));
+    }
+  }
+  updateExportAnnotations();
+}
+async function openProjectFile(file){
+  if(!file)return;
+  try{
+    setStatus('Åbner projektfil…');
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const archive=unzipSync(bytes);
+    if(!archive['project.json'])throw new Error('project.json mangler i projektfilen.');
+    const manifest=JSON.parse(strFromU8(archive['project.json']));
+    if(manifest.format!==PROJECT_FORMAT)throw new Error('Filen er ikke et ArchaeoPlan-projekt.');
+    if(manifest.formatVersion>PROJECT_FORMAT_VERSION)throw new Error('Projektfilen er lavet i en nyere ArchaeoPlan-version.');
+
+    if(models.length&&!window.confirm('Åbn projektet og erstat det nuværende arbejdsområde?')){
+      projectInput.value='';
+      setStatus('Åbning annulleret.');
+      return;
+    }
+
+    // Parse all model data before replacing the current workspace.
+    const prepared=[];
+    for(let i=0;i<(manifest.models||[]).length;i++){
+      const meta=manifest.models[i];
+      const modelBytes=archive[meta.file];
+      if(!modelBytes)throw new Error(`Modeldata mangler: ${meta.file}`);
+      setStatus(`Åbner projekt: model ${i+1} af ${manifest.models.length}…`);
+      const root=await parseGlbBytes(modelBytes);
+      prepared.push({root,meta});
+      await new Promise(r=>setTimeout(r,0));
+    }
+
+    clearProjectWorkspace();
+
+    for(const item of prepared){
+      const {root,meta}=item;
+      const m=addModel(root,meta.name,{prepared:true,cropped:!!meta.cropped,frame:false});
+      root.position.fromArray(meta.position||[0,0,0]);
+      root.quaternion.fromArray(meta.quaternion||[0,0,0,1]);
+      root.scale.fromArray(meta.scale||[1,1,1]);
+      root.visible=meta.visible!==false;
+      root.userData.locked=!!meta.locked;
+      root.updateMatrixWorld(true);
+      m.name=meta.name||m.name;
+    }
+
+    restoreProjectSettings(manifest.settings||{});
+    rebuildModelList();
+    syncTransformFields();
+    updateCropButtons();
+    projectInput.value='';
+    setStatus(`Projekt åbnet: ${file.name}`);
+  }catch(err){
+    console.error(err);
+    projectInput.value='';
+    setStatus(`Kunne ikke åbne projekt: ${err.message||err}`);
+  }
+}
+
 // ---------- Undo / Redo ----------
 const undoStack=[],redoStack=[];
 let transformStartState=null;
@@ -844,7 +1121,11 @@ $('exportPreset').onchange=()=>syncExportDimensions('preset');
 $('exportWidth').onchange=()=>syncExportDimensions('width');
 $('exportHeight').onchange=()=>syncExportDimensions('height');
 
-$('newProjectButton').onclick=newProject;$('undoButton').onclick=undo;$('redoButton').onclick=redo;$('fitModelButton').onclick=fitSelectedModel;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);
+$('newProjectButton').onclick=newProject;
+$('saveProjectButton').onclick=saveProject;
+$('openProjectButton').onclick=()=>projectInput.click();
+projectInput.onchange=e=>openProjectFile(e.target.files?.[0]);
+$('undoButton').onclick=undo;$('redoButton').onclick=redo;$('fitModelButton').onclick=fitSelectedModel;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);
 $('perspectiveButton').onclick=()=>switchCamera(false);$('orthographicButton').onclick=()=>switchCamera(true);$('gridToggle').onchange=e=>grid.visible=e.target.checked;
 $('translateButton').onclick=()=>{transform.setMode('translate');$('translateButton').classList.add('active');$('rotateButton').classList.remove('active')};
 $('rotateButton').onclick=()=>{transform.setMode('rotate');$('rotateButton').classList.add('active');$('translateButton').classList.remove('active')};

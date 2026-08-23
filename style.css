@@ -117,3 +117,13 @@ select {
 #scaleBarOverlay.active:before{content:"";position:absolute;left:50%;bottom:-4px;height:10px;border-left:2px solid white}
 #scaleBarOverlay span{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);white-space:nowrap}
 #northArrowOverlay.active{display:block;width:60px;height:80px;text-align:center}.northArrowGlyph{font-size:54px;line-height:52px;transform-origin:50% 70%}.northArrowN{font-size:18px;font-weight:800}
+
+
+/* v0.2.15 */
+.header-actions{
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.model-row{
+  grid-template-columns:22px minmax(0,1fr) 32px 28px;
+}

@@ -4,18 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.14</title>
-  <link rel="stylesheet" href="style.css?v=0.2.14">
+  <title>ArchaeoPlan v0.2.15</title>
+  <link rel="stylesheet" href="style.css?v=0.2.15">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.13</span>
+      <span class="version">v0.2.15</span>
     </div>
     <div class="header-actions">
       <button id="newProjectButton">Nyt projekt</button>
+      <button id="saveProjectButton">Gem projekt</button>
+      <button id="openProjectButton">Åbn projekt</button>
+      <input id="projectInput" type="file" accept=".archaeoplan,application/zip" hidden>
       <button id="addFileButton" class="primary">Tilføj fil</button>
       <input id="fileInput" type="file" multiple hidden>
       <button id="undoButton" title="Fortryd" aria-label="Fortryd">↶</button>
@@ -190,7 +193,7 @@
       <strong>Slip filer her</strong>
       <span>GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.14 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.15 klar.</div>
   </main>
 </div>
 
@@ -202,6 +205,6 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.14"></script>
+<script type="module" src="app.js?v=0.2.15"></script>
 </body>
 </html>
