@@ -6,7 +6,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 
-const VERSION='0.2.5';
+const VERSION='0.2.6';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -132,25 +132,47 @@ function directionVector(name){
 function fitCameraToBox(box,direction=null){
   if(!box)return;
   const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
-  const radius=Math.max(size.length()/2,.01),aspect=Math.max(viewport.clientWidth/Math.max(viewport.clientHeight,1),.01);
+  const w=Math.max(viewport.clientWidth,1),h=Math.max(viewport.clientHeight,1),aspect=w/h;
+  const radius=Math.max(size.length()/2,.0001);
   orbit.target.copy(center);
   let dir=direction?direction.clone().normalize():camera.position.clone().sub(center).normalize();
-  if(dir.lengthSq()<.1)dir=new THREE.Vector3(1,1,1).normalize();
+  if(!Number.isFinite(dir.x)||dir.lengthSq()<.0001)dir=new THREE.Vector3(1,1,1).normalize();
 
   if(camera.isPerspectiveCamera){
-    const fov=THREE.MathUtils.degToRad(camera.fov);
-    const dist=radius/Math.tan(fov/2)*1.25;
+    const verticalFov=THREE.MathUtils.degToRad(camera.fov);
+    const horizontalFov=2*Math.atan(Math.tan(verticalFov/2)*aspect);
+    const limitingFov=Math.min(verticalFov,horizontalFov);
+    const dist=(radius/Math.sin(Math.max(limitingFov/2,.01)))*1.18;
     camera.position.copy(center).add(dir.multiplyScalar(dist));
-    camera.near=Math.max(dist/10000,.001);camera.far=dist+radius*50;
+    camera.near=Math.max(dist-radius*3,.0001);
+    camera.far=Math.max(dist+radius*20,camera.near+1);
   }else{
-    const halfH=radius*1.25;
-    camera.left=-halfH*aspect;camera.right=halfH*aspect;camera.top=halfH;camera.bottom=-halfH;
-    camera.position.copy(center).add(dir.multiplyScalar(Math.max(radius*4,10)));
-    camera.near=-Math.max(radius*50,1000);camera.far=Math.max(radius*50,1000);
+    // Project all 8 corners onto the camera's screen axes. This fits flat and
+    // elongated photogrammetry models much more reliably than a sphere radius.
+    const upHint=Math.abs(dir.y)>.999?new THREE.Vector3(0,0,dir.y>0?-1:1):new THREE.Vector3(0,1,0);
+    const right=new THREE.Vector3().crossVectors(dir,upHint).normalize();
+    const up=new THREE.Vector3().crossVectors(right,dir).normalize();
+    let halfW=.0001,halfH=.0001;
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+      const d=new THREE.Vector3(x,y,z).sub(center);
+      halfW=Math.max(halfW,Math.abs(d.dot(right)));
+      halfH=Math.max(halfH,Math.abs(d.dot(up)));
+    }
+    halfW*=1.12;halfH*=1.12;
+    if(halfW/halfH>aspect)halfH=halfW/aspect;else halfW=halfH*aspect;
+    camera.left=-halfW;camera.right=halfW;camera.top=halfH;camera.bottom=-halfH;
+    camera.position.copy(center).add(dir.multiplyScalar(Math.max(radius*4,1)));
+    camera.near=-Math.max(radius*20,100);camera.far=Math.max(radius*20,100);
+    camera.up.copy(up);
   }
   camera.lookAt(center);camera.updateProjectionMatrix();orbit.update();
 }
-function frameCurrentView(){fitCameraToBox(framingBox())}
+function frameCurrentView(){
+  const box=framingBox();if(!box)return;
+  fitCameraToBox(box);
+  // iPad/Safari can report the viewport one layout frame late after import.
+  requestAnimationFrame(()=>fitCameraToBox(framingBox()));
+}
 
 function switchCamera(useOrtho){
   const pos=camera.position.clone(),target=orbit.target.clone();orbit.dispose();transform.detach();
@@ -240,7 +262,7 @@ function startCrop(){
   renderer.domElement.style.pointerEvents='none';
   cropInputLayer.classList.add('active');cropOverlay.classList.add('active');cropHint.classList.add('active');
   $('startCropButton').classList.add('active');
-  cropHint.textContent=cropTool==='freehand'?'Frihånd aktiv: tegn rundt om området og slip.':'Polygon aktiv: tryk punkter langs kanten.';
+  cropHint.textContent=cropTool==='freehand'?'Frihånd aktiv: tegn i flere strøg. Løft pennen og fortsæt et nyt sted – mellemrummet forbindes med en lige linje.':'Polygon aktiv: tryk punkter langs kanten.';
   updateCropButtons();redrawCrop();setStatus('Beskæring aktiv.');
 }
 function cancelCrop(){
@@ -262,7 +284,14 @@ function down(e){
   if(!cropMode)return;e.preventDefault();e.stopPropagation();
   const p=pointFromEvent(e);
   if(cropTool==='polygon'){cropPoints.push(p);redrawCrop();updateCropButtons();return}
-  cropDrawing=true;cropPointerId=e.pointerId;cropPoints=[p];cropInputLayer.setPointerCapture?.(e.pointerId);redrawCrop();
+  cropDrawing=true;cropPointerId=e.pointerId;
+  // Første strøg starter konturen. Senere strøg fortsætter den eksisterende
+  // kontur; SVG-polylinjen laver automatisk en lige forbindelse til pennen.
+  if(!cropPoints.length)cropPoints.push(p);else{
+    const last=cropPoints[cropPoints.length-1];
+    if(Math.hypot(p.x-last.x,p.y-last.y)>.5)cropPoints.push(p);
+  }
+  cropInputLayer.setPointerCapture?.(e.pointerId);redrawCrop();updateCropButtons();
 }
 function move(e){
   if(!cropMode||cropTool!=='freehand'||!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
@@ -272,7 +301,7 @@ function move(e){
 function up(e){
   if(!cropMode||cropTool!=='freehand'||!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
   cropDrawing=false;cropInputLayer.releasePointerCapture?.(e.pointerId);cropPointerId=null;redrawCrop();updateCropButtons();
-  if(cropPoints.length>=3)setStatus('Område klar – vælg Behold eller Fjern.');
+  if(cropPoints.length>=3)setStatus('Strøg gemt. Fortsæt et andet sted, eller vælg Behold/Fjern.');
 }
 function inPolygon(p,poly){
   let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){

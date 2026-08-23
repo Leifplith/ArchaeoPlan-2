@@ -1,4 +1,4 @@
-# ArchaeoPlan v0.2.5
+# ArchaeoPlan v0.2.6
 
 Ren genopbygning af ArchaeoPlan.
 
@@ -28,4 +28,4 @@ Ved OBJ vælges OBJ, MTL og alle teksturbilleder samtidigt.
 - Modellens koordinater ændres ikke; kun kameraet flyttes.
 
 ## Bemærkning
-Beskæring i v0.2.5 sker ved eksisterende trekantgrænser. Der skabes endnu ikke nye trekanter præcis langs den tegnede kant.
+Beskæring i v0.2.6 sker ved eksisterende trekantgrænser. Der skabes endnu ikke nye trekanter præcis langs den tegnede kant.
