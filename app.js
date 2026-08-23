@@ -6,7 +6,8 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 
-const VERSION='0.2.9';
+const VERSION='0.2.10';
+const WORKSPACE_CENTER=new THREE.Vector3(-4.897,0.830,0);
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -21,9 +22,9 @@ renderer.toneMapping=THREE.NoToneMapping;
 viewport.prepend(renderer.domElement);
 
 const perspectiveCamera=new THREE.PerspectiveCamera(45,1,.001,1e7);
-perspectiveCamera.position.set(5,5,5);
+perspectiveCamera.position.copy(WORKSPACE_CENTER).add(new THREE.Vector3(12,10,12));
 const orthographicCamera=new THREE.OrthographicCamera(-5,5,5,-5,-1e7,1e7);
-orthographicCamera.position.set(5,5,5);
+orthographicCamera.position.copy(WORKSPACE_CENTER).add(new THREE.Vector3(0,18,0.001));
 let camera=perspectiveCamera;
 
 function createOrbit(cam){
@@ -33,6 +34,9 @@ function createOrbit(cam){
   return o;
 }
 let orbit=createOrbit(camera);
+orbit.target.copy(WORKSPACE_CENTER);
+camera.lookAt(WORKSPACE_CENTER);
+orbit.update();
 
 const transform=new TransformControls(camera,renderer.domElement);
 transform.setMode('translate');
@@ -226,9 +230,47 @@ function fitCameraToBox(box,direction=null){
   orbit.target.copy(center);
   orbit.update();
 }
-function frameCurrentView(){
+
+function simpleWorkspaceFrame(direction=null){
   const box=framingBox();
-  if(box)fitCameraToBox(box);
+  let radius=3;
+  if(box){
+    const size=box.getSize(new THREE.Vector3());
+    radius=Math.max(size.length()/2,0.5);
+  }
+
+  let dir=direction?direction.clone().normalize():new THREE.Vector3(1,0.8,1).normalize();
+  if(dir.lengthSq()<0.1)dir.set(1,0.8,1).normalize();
+
+  const target=WORKSPACE_CENTER.clone();
+  const aspect=Math.max(viewport.clientWidth/Math.max(viewport.clientHeight,1),0.05);
+  orbit.target.copy(target);
+
+  if(camera.isPerspectiveCamera){
+    const distance=Math.max(radius*4.0,12);
+    camera.position.copy(target).add(dir.multiplyScalar(distance));
+    camera.near=0.01;
+    camera.far=Math.max(distance+radius*50,1000);
+  }else{
+    const halfH=Math.max(radius*1.8,8);
+    camera.left=-halfH*aspect;
+    camera.right=halfH*aspect;
+    camera.top=halfH;
+    camera.bottom=-halfH;
+    camera.zoom=1;
+    const distance=Math.max(radius*5,18);
+    camera.position.copy(target).add(dir.multiplyScalar(distance));
+    camera.near=-10000;
+    camera.far=10000;
+  }
+  camera.lookAt(target);
+  camera.updateProjectionMatrix();
+  orbit.target.copy(target);
+  orbit.update();
+}
+
+function frameCurrentView(){
+  simpleWorkspaceFrame();
 }
 function fitSelectedModel(){
   const box=framingBox();
@@ -247,12 +289,12 @@ function switchCamera(useOrtho){
 }
 function setStandardView(name){
   if(!camera.isOrthographicCamera)switchCamera(true);
-  const dir=directionVector(name),box=framingBox();if(!box)return;
+  const dir=directionVector(name);
   camera.up.set(0,1,0);
   if(name==='top')camera.up.set(0,0,-1);
   if(name==='bottom')camera.up.set(0,0,1);
-  fitCameraToBox(box,dir);
-  setStatus(`${name}: centreret`);
+  simpleWorkspaceFrame(dir);
+  setStatus(`${name}: centrum X -4,897 / Y 0,830`);
 }
 
 function basename(url){return decodeURIComponent(url.split(/[\\/]/).pop().split(/[?#]/)[0]).toLowerCase()}
@@ -300,7 +342,7 @@ async function loadFiles(fileList){
 function newProject(){
   if(models.length&&!confirm('Opret nyt projekt og fjern modellerne fra arbejdsfladen?'))return;
   cancelCrop();transform.detach();models.forEach(m=>scene.remove(m.root));models.length=0;selectedModel=null;modelNumber=1;releaseAllObjectUrls();
-  undoStack.length=0;redoStack.length=0;updateHistoryButtons();rebuildModelList();syncTransformFields();setStatus('Nyt tomt projekt.');
+  undoStack.length=0;redoStack.length=0;updateHistoryButtons();rebuildModelList();syncTransformFields();simpleWorkspaceFrame();setStatus('Nyt tomt projekt – fast centrum X -4,897 / Y 0,830.');
 }
 
 function updateCropButtons(){
