@@ -100,3 +100,20 @@ select {
   font-size:12px;
   white-space:nowrap;
 }
+
+/* v0.2.14 */
+.model-row{grid-template-columns:22px minmax(0,1fr) 32px 28px}
+.model-lock{padding:3px!important;min-width:30px;font-size:15px}
+.model-lock.locked{background:#e6ebef}
+.saved-views-list{display:flex;flex-direction:column;gap:6px;margin-top:7px}
+.saved-view-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:5px;align-items:center}
+.saved-view-name{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.saved-view-row button{padding:5px 7px}
+.section-rule{border:0;border-top:1px solid #cfd5da;margin:12px 0}
+.check-row{display:flex;align-items:center;gap:7px;margin:8px 0}.check-row input{width:auto;margin:0}
+#exportAnnotations{position:absolute;inset:0;z-index:26;pointer-events:none}
+#scaleBarOverlay,#northArrowOverlay{display:none;position:absolute;color:white;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
+#scaleBarOverlay.active{display:block;height:28px;border-left:2px solid white;border-right:2px solid white;border-bottom:4px solid white;font-weight:700;font-size:13px;text-align:center}
+#scaleBarOverlay.active:before{content:"";position:absolute;left:50%;bottom:-4px;height:10px;border-left:2px solid white}
+#scaleBarOverlay span{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);white-space:nowrap}
+#northArrowOverlay.active{display:block;width:60px;height:80px;text-align:center}.northArrowGlyph{font-size:54px;line-height:52px;transform-origin:50% 70%}.northArrowN{font-size:18px;font-weight:800}

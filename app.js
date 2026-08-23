@@ -9,11 +9,11 @@ import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.13';
+const VERSION='0.2.14';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
-const exportFrame=$('exportFrame'),measureResult=$('measureResult');
+const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0xd6d9dc);
@@ -44,6 +44,7 @@ orbit.update();
 const transform=new TransformControls(camera,renderer.domElement);
 transform.setMode('translate');
 transform.addEventListener('dragging-changed',e=>{
+  if(selectedModel?.root.userData.locked){transform.detach();orbit.enabled=true;return}
   orbit.enabled=!e.value;
   if(e.value){
     transformStartState=cloneTransformState(selectedModel);
@@ -69,6 +70,7 @@ const liveObjectUrls=new Set();
 let cropMode=false,cropTool='freehand',cropPoints=[],cropDrawing=false,cropPointerId=null;
 let measureMode=false,measurePoints=[],measureLine=null,measureDots=[],measureLabel=null;
 let exportFrameVisible=false;
+let savedViews=[];
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -98,13 +100,13 @@ function prepareDocumentationMaterials(root){
   });
 }
 
-function addModel(root,name,{prepared=false,cropped=false}={}){
+function addModel(root,name,{prepared=false,cropped=false,frame=true}={}){
   root.name=name||`Model ${modelNumber}`;root.userData.locked=false;
   if(!prepared)prepareDocumentationMaterials(root);
   scene.add(root);
   const model={id:modelNumber++,name:root.name,root,cropped};
   models.push(model);selectModel(model);rebuildModelList();
-  frameCurrentView();
+  if(frame)frameCurrentView();
   setStatus(`Indlæst: ${model.name}`);
   return model;
 }
@@ -120,13 +122,25 @@ function rebuildModelList(){
     const row=document.createElement('div');row.className='model-row'+(m===selectedModel?' selected':'');
     const vis=document.createElement('input');vis.type='checkbox';vis.checked=m.root.visible;vis.onchange=()=>m.root.visible=vis.checked;
     const name=document.createElement('div');name.className='model-name';name.textContent=(m.cropped?'✂ ':'')+m.name;name.onclick=()=>selectModel(m);
+    const lock=document.createElement('button');lock.className='model-lock'+(m.root.userData.locked?' locked':'');lock.textContent=m.root.userData.locked?'🔒':'🔓';lock.title=m.root.userData.locked?'Lås op':'Lås model';lock.onclick=e=>{e.stopPropagation();setModelLock(m,!m.root.userData.locked)};
     const del=document.createElement('button');del.className='model-delete';del.textContent='×';del.onclick=()=>{if(selectedModel===m)selectModel(null);scene.remove(m.root);models.splice(models.indexOf(m),1);rebuildModelList()};
-    row.append(vis,name,del);modelList.append(row);
+    row.append(vis,name,lock,del);modelList.append(row);
   });
 }
 
+function setModelLock(m,locked){
+  if(!m)return;
+  m.root.userData.locked=!!locked;
+  if(selectedModel===m){transform.detach();if(!locked&&!cropMode&&!measureMode)transform.attach(m.root)}
+  rebuildModelList();syncTransformFields();updateCropButtons();setStatus(locked?'Modellen er låst.':'Modellen er låst op.');
+}
+function selectedEditable(){
+  if(!selectedModel){setStatus('Vælg først en model.');return false}
+  if(selectedModel.root.userData.locked){setStatus('Modellen er låst.');return false}
+  return true;
+}
 function syncTransformFields(){
-  ['posX','posY','posZ','rotX','rotY','rotZ'].forEach(id=>$(id).disabled=!selectedModel);
+  ['posX','posY','posZ','rotX','rotY','rotZ'].forEach(id=>$(id).disabled=!selectedModel||selectedModel.root.userData.locked);
   if(!selectedModel){$('lockButton').textContent='Lås';return}
   const p=selectedModel.root.position,r=selectedModel.root.rotation;
   $('posX').value=p.x.toFixed(3);$('posY').value=p.y.toFixed(3);$('posZ').value=p.z.toFixed(3);
@@ -134,12 +148,12 @@ function syncTransformFields(){
   $('lockButton').textContent=selectedModel.root.userData.locked?'Lås op':'Lås';
 }
 function applyTransformFields(){
-  if(!selectedModel)return;const n=id=>parseFloat($(id).value)||0;
+  if(!selectedEditable())return;const n=id=>parseFloat($(id).value)||0;
   selectedModel.root.position.set(n('posX'),n('posY'),n('posZ'));
   selectedModel.root.rotation.set(THREE.MathUtils.degToRad(n('rotX')),THREE.MathUtils.degToRad(n('rotY')),THREE.MathUtils.degToRad(n('rotZ')));
 }
 ['posX','posY','posZ','rotX','rotY','rotZ'].forEach(id=>$(id).addEventListener('change',()=>{
-  if(!selectedModel)return;
+  if(!selectedEditable())return;
   const before=cloneTransformState(selectedModel);
   applyTransformFields();
   const after=cloneTransformState(selectedModel);
@@ -348,7 +362,7 @@ function newProject(){
 }
 
 function updateCropButtons(){
-  $('startCropButton').disabled=!selectedModel||cropMode;
+  $('startCropButton').disabled=!selectedModel||selectedModel.root.userData.locked||cropMode;
   $('cancelCropButton').disabled=!cropMode;
   const ready=cropMode&&cropPoints.length>=3;
   $('cropInsideButton').disabled=!ready;$('cropOutsideButton').disabled=!ready;
@@ -363,7 +377,7 @@ function setCropTool(tool){
   updateCropButtons();
 }
 function startCrop(){
-  if(!selectedModel){setStatus('Vælg først en model.');return}
+  if(!selectedEditable())return
   cropMode=true;cropPoints=[];cropDrawing=false;cropPointerId=null;transform.detach();
   orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;
   renderer.domElement.style.pointerEvents='none';
@@ -436,25 +450,25 @@ function cropGeometry(mesh,poly,keepInside){
   g.setIndex(kept);g.computeBoundingBox();g.computeBoundingSphere();
 }
 function applyCrop(keepInside){
-  if(!selectedModel||cropPoints.length<3)return;
+  if(!selectedEditable()||cropPoints.length<3)return;
   const original=selectedModel,clone=original.root.clone(true);
   clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry=o.geometry.clone()});
   clone.traverse(o=>{if(o.isMesh)cropGeometry(o,cropPoints,keepInside)});
   const originalWasVisible=original.root.visible;
   original.root.visible=false;
-  const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true});
+  const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true,frame:false});
   pushHistory({
     label:'beskæring',
     undo:()=>{
       scene.remove(m.root);
       const i=models.indexOf(m);if(i>=0)models.splice(i,1);
       original.root.visible=originalWasVisible;
-      selectModel(original);rebuildModelList();frameCurrentView();
+      selectModel(original);rebuildModelList();
     },
     redo:()=>{
       if(!models.includes(m)){models.push(m);scene.add(m.root)}
       original.root.visible=false;
-      selectModel(m);rebuildModelList();frameCurrentView();
+      selectModel(m);rebuildModelList();
     }
   });
   cancelCrop();selectModel(m);setStatus('Beskåret kopi oprettet. Originalen er bevaret og skjult.');
@@ -489,9 +503,18 @@ function resize(){
   cropOverlay.setAttribute('viewBox',`0 0 ${w} ${h}`);
   updateExportFrame();
   updateMeasureLabel();
+  updateExportAnnotations();
 }
 
 
+
+// ---------- Saved views ----------
+function snapshotView(){return {name:'',ortho:camera.isOrthographicCamera,position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),up:camera.up.toArray(),target:orbit.target.toArray(),zoom:camera.zoom,fov:camera.isPerspectiveCamera?camera.fov:null,ratio:$('exportRatio').value,width:$('exportWidth').value,height:$('exportHeight').value};}
+function saveView(){const s=snapshotView(),suggested=`Visning ${savedViews.length+1}`;const n=prompt('Navn på visningen:',suggested);if(n===null)return;s.name=n.trim()||suggested;savedViews.push(s);renderSavedViews();setStatus(`Visning "${s.name}" gemt.`)}
+function restoreView(i){const s=savedViews[i];if(!s)return;if(camera.isOrthographicCamera!==s.ortho)switchCamera(s.ortho);camera.position.fromArray(s.position);camera.quaternion.fromArray(s.quaternion);camera.up.fromArray(s.up);orbit.target.fromArray(s.target);camera.zoom=s.zoom||1;if(camera.isPerspectiveCamera&&s.fov)camera.fov=s.fov;camera.updateProjectionMatrix();orbit.update();$('exportRatio').value=s.ratio;$('exportWidth').value=s.width;$('exportHeight').value=s.height;updateExportFrame();setStatus(`Visning "${s.name}" hentet.`)}
+function deleteView(i){savedViews.splice(i,1);renderSavedViews()}
+function clearViews(){if(!savedViews.length)return;if(confirm('Ryd alle gemte visninger?')){savedViews=[];renderSavedViews();setStatus('Gemte visninger ryddet.')}}
+function renderSavedViews(){const list=$('savedViewsList');if(!list)return;list.innerHTML='';if(!savedViews.length){list.innerHTML='<p class="muted small">Ingen gemte visninger.</p>';return}savedViews.forEach((v,i)=>{const row=document.createElement('div');row.className='saved-view-row';const n=document.createElement('div');n.className='saved-view-name';n.textContent=v.name;const go=document.createElement('button');go.textContent='Hent';go.onclick=()=>restoreView(i);const del=document.createElement('button');del.textContent='×';del.onclick=()=>deleteView(i);row.append(n,go,del);list.append(row)})}
 
 // ---------- Measurement ----------
 const measureRaycaster=new THREE.Raycaster();
@@ -627,6 +650,7 @@ function updateExportFrame(){
   exportFrame.style.height=`${h}px`;
   exportFrame.style.left=`${(r.width-w)/2}px`;
   exportFrame.style.top=`${(r.height-h)/2}px`;
+  updateExportAnnotations();
 }
 function toggleExportFrame(){
   exportFrameVisible=!exportFrameVisible;
@@ -655,6 +679,44 @@ function exportFrameRect(){
   const fr=exportFrame.getBoundingClientRect();
   return {x:fr.left-vr.left,y:fr.top-vr.top,w:fr.width,h:fr.height};
 }
+function placeOverlay(el,pos,frame,pad=22){
+  const vr=viewport.getBoundingClientRect();
+  el.style.left=el.style.right=el.style.top=el.style.bottom='auto';
+  const fx=frame.left-vr.left,fy=frame.top-vr.top;
+  if(pos.includes('left'))el.style.left=`${fx+pad}px`;else el.style.right=`${Math.max(vr.width-(fx+frame.width)+pad,pad)}px`;
+  if(pos.includes('top'))el.style.top=`${fy+pad}px`;else el.style.bottom=`${Math.max(vr.height-(fy+frame.height)+pad,pad)}px`;
+}
+function orthoUnitsPerPixel(){
+  const r=renderer.domElement.getBoundingClientRect();
+  return ((camera.top-camera.bottom)/Math.max(camera.zoom,1e-9))/Math.max(r.height,1);
+}
+function niceScaleLength(){
+  const raw=orthoUnitsPerPixel()*140,exp=Math.floor(Math.log10(Math.max(raw,1e-9)));let best=1,bestD=Infinity;
+  for(let e=exp-1;e<=exp+1;e++)for(const p of [1,2,5]){const v=p*10**e,d=Math.abs(Math.log(v/raw));if(d<bestD){best=v;bestD=d}}
+  return best;
+}
+function scaleText(v){if(v>=1)return `${Number(v.toFixed(2))} m`;if(v>=.01)return `${Number((v*100).toFixed(1))} cm`;return `${Number((v*1000).toFixed(0))} mm`}
+function updateExportAnnotations(){
+  if(!scaleBarOverlay||!northArrowOverlay)return;
+  const frame=exportFrameVisible?exportFrame.getBoundingClientRect():viewport.getBoundingClientRect();
+  if($('showScaleBar').checked&&camera.isOrthographicCamera){
+    const length=$('scaleBarLength').value==='auto'?niceScaleLength():parseFloat($('scaleBarLength').value);
+    scaleBarOverlay.innerHTML=`<span>${scaleText(length)}</span>`;scaleBarOverlay.style.width=`${Math.max(30,length/orthoUnitsPerPixel())}px`;scaleBarOverlay.classList.add('active');placeOverlay(scaleBarOverlay,$('scaleBarPosition').value,frame);
+  }else scaleBarOverlay.classList.remove('active');
+  if($('showNorthArrow').checked){northArrowOverlay.classList.add('active');northArrowOverlay.querySelector('.northArrowGlyph').style.transform=`rotate(${$('northAngle').value||0}deg)`;placeOverlay(northArrowOverlay,$('northPosition').value,frame)}else northArrowOverlay.classList.remove('active');
+}
+async function drawAnnotationsOnBlob(blob,outW,outH){
+  if(!$('showScaleBar').checked&&!$('showNorthArrow').checked)return blob;
+  const img=await createImageBitmap(blob),c=document.createElement('canvas');c.width=outW;c.height=outH;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,outW,outH);
+  const factor=Math.min(outW/Math.max(exportFrameRect().w,1),outH/Math.max(exportFrameRect().h,1)),pad=28*factor;
+  if($('showScaleBar').checked&&camera.isOrthographicCamera){
+    const length=$('scaleBarLength').value==='auto'?niceScaleLength():parseFloat($('scaleBarLength').value),bar=(length/orthoUnitsPerPixel())*factor,pos=$('scaleBarPosition').value,x=pos.includes('left')?pad:outW-pad-bar,y=pos.includes('top')?pad+30*factor:outH-pad;
+    ctx.save();ctx.strokeStyle=ctx.fillStyle='white';ctx.lineWidth=Math.max(3,4*factor);ctx.shadowColor='rgba(0,0,0,.85)';ctx.shadowBlur=4*factor;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+bar,y);ctx.stroke();ctx.lineWidth=Math.max(2,2*factor);for(const xx of [x,x+bar/2,x+bar]){ctx.beginPath();ctx.moveTo(xx,y-7*factor);ctx.lineTo(xx,y+7*factor);ctx.stroke()}ctx.font=`700 ${Math.max(18,18*factor)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(scaleText(length),x+bar/2,y-10*factor);ctx.restore();
+  }
+  if($('showNorthArrow').checked){const pos=$('northPosition').value,cx=pos.includes('left')?pad+35*factor:outW-pad-35*factor,cy=pos.includes('top')?pad+45*factor:outH-pad-45*factor,a=THREE.MathUtils.degToRad(parseFloat($('northAngle').value)||0),L=55*factor;ctx.save();ctx.translate(cx,cy);ctx.rotate(a);ctx.strokeStyle=ctx.fillStyle='white';ctx.lineWidth=Math.max(3,4*factor);ctx.shadowColor='rgba(0,0,0,.85)';ctx.shadowBlur=4*factor;ctx.beginPath();ctx.moveTo(0,L/2);ctx.lineTo(0,-L/2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-L/2-10*factor);ctx.lineTo(-10*factor,-L/2+8*factor);ctx.lineTo(10*factor,-L/2+8*factor);ctx.closePath();ctx.fill();ctx.rotate(-a);ctx.font=`800 ${Math.max(18,20*factor)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('N',0,-L/2-16*factor);ctx.restore()}
+  return await new Promise(resolve=>c.toBlob(resolve,'image/png'));
+}
+
 async function renderExportBlob(){
   const outW=Math.max(200,Math.min(12000,parseInt($('exportWidth').value)||3000));
   const outH=Math.max(200,Math.min(12000,parseInt($('exportHeight').value)||2000));
@@ -691,7 +753,7 @@ async function renderExportBlob(){
   perspectiveCamera.aspect=oldAspect;
   Object.assign(orthographicCamera,{left:oldOrtho.l,right:oldOrtho.r,top:oldOrtho.t,bottom:oldOrtho.b});
   camera.updateProjectionMatrix();
-  return blob;
+  return await drawAnnotationsOnBlob(blob,outW,outH);
 }
 async function savePng(){
   const blob=await renderExportBlob();
@@ -767,6 +829,8 @@ function redo(){
 }
 
 
+$('saveViewButton').onclick=saveView;$('clearViewsButton').onclick=clearViews;
+['showScaleBar','scaleBarLength','scaleBarPosition','showNorthArrow','northPosition'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='showScaleBar'&&$('showScaleBar').checked&&!camera.isOrthographicCamera)setStatus('Målestok er kun metrisk korrekt i ortografisk visning.');updateExportAnnotations()}));$('northAngle').addEventListener('input',updateExportAnnotations);
 $('measureButton').onclick=toggleMeasure;
 $('clearMeasureButton').onclick=clearMeasurement;
 
@@ -784,7 +848,7 @@ $('newProjectButton').onclick=newProject;$('undoButton').onclick=undo;$('redoBut
 $('perspectiveButton').onclick=()=>switchCamera(false);$('orthographicButton').onclick=()=>switchCamera(true);$('gridToggle').onchange=e=>grid.visible=e.target.checked;
 $('translateButton').onclick=()=>{transform.setMode('translate');$('translateButton').classList.add('active');$('rotateButton').classList.remove('active')};
 $('rotateButton').onclick=()=>{transform.setMode('rotate');$('rotateButton').classList.add('active');$('translateButton').classList.remove('active')};
-$('lockButton').onclick=()=>{if(!selectedModel)return;selectedModel.root.userData.locked=!selectedModel.root.userData.locked;transform.detach();if(!selectedModel.root.userData.locked&&!cropMode)transform.attach(selectedModel.root);syncTransformFields()};
+$('lockButton').onclick=()=>{if(selectedModel)setModelLock(selectedModel,!selectedModel.root.userData.locked)};
 $('freehandCropButton').onclick=()=>setCropTool('freehand');$('polygonCropButton').onclick=()=>setCropTool('polygon');$('startCropButton').onclick=startCrop;$('cancelCropButton').onclick=cancelCrop;$('cropInsideButton').onclick=()=>applyCrop(true);$('cropOutsideButton').onclick=()=>applyCrop(false);
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setStandardView(b.dataset.view));
 
@@ -799,5 +863,5 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 ['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend'].forEach(n=>cropInputLayer.addEventListener(n,e=>{if(cropMode){e.preventDefault();e.stopPropagation()}},{passive:false,capture:true}));
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
-window.addEventListener('resize',resize);resize();resetViewToOrigin(false);updateCropButtons();updateHistoryButtons();setStatus(`ArchaeoPlan v${VERSION} klar.`);
+window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();setStatus(`ArchaeoPlan v${VERSION} klar.`);
 (function animate(){requestAnimationFrame(animate);orbit.update();updateMeasureLabel();renderer.render(scene,camera)})();
