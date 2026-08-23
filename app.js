@@ -9,10 +9,11 @@ import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.12-clean';
+const VERSION='0.2.13';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
+const exportFrame=$('exportFrame'),measureResult=$('measureResult');
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0xd6d9dc);
@@ -66,6 +67,8 @@ const grid=new THREE.GridHelper(20,20,0x6c7379,0xaab0b5);scene.add(grid);scene.a
 const models=[];let selectedModel=null;let modelNumber=1;
 const liveObjectUrls=new Set();
 let cropMode=false,cropTool='freehand',cropPoints=[],cropDrawing=false,cropPointerId=null;
+let measureMode=false,measurePoints=[],measureLine=null,measureDots=[],measureLabel=null;
+let exportFrameVisible=false;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -484,8 +487,241 @@ function resize(){
   }
 
   cropOverlay.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  updateExportFrame();
+  updateMeasureLabel();
 }
 
+
+
+// ---------- Measurement ----------
+const measureRaycaster=new THREE.Raycaster();
+const measurePointer=new THREE.Vector2();
+
+function visibleMeshes(){
+  const arr=[];
+  models.forEach(m=>{
+    if(!m.root.visible)return;
+    m.root.traverse(o=>{if(o.isMesh)arr.push(o)});
+  });
+  return arr;
+}
+function screenToNdc(event){
+  const r=renderer.domElement.getBoundingClientRect();
+  measurePointer.x=((event.clientX-r.left)/r.width)*2-1;
+  measurePointer.y=-((event.clientY-r.top)/r.height)*2+1;
+}
+function clearMeasurement(){
+  measurePoints=[];
+  if(measureLine){scene.remove(measureLine);measureLine.geometry.dispose();measureLine.material.dispose();measureLine=null}
+  measureDots.forEach(d=>{scene.remove(d);d.geometry.dispose();d.material.dispose()});measureDots=[];
+  if(measureLabel){measureLabel.remove();measureLabel=null}
+  if(measureResult)measureResult.textContent='Ingen måling.';
+}
+function toggleMeasure(){
+  measureMode=!measureMode;
+  $('measureButton').classList.toggle('active',measureMode);
+  if(measureMode){
+    cancelCrop();
+    clearMeasurement();
+    transform.detach();
+    setStatus('Måling aktiv: tryk to punkter på modellen.');
+  }else{
+    if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root);
+    setStatus('Måling afsluttet.');
+  }
+}
+function addMeasurePoint(world){
+  measurePoints.push(world.clone());
+
+  const dot=new THREE.Mesh(
+    new THREE.SphereGeometry(.02,12,12),
+    new THREE.MeshBasicMaterial({color:0x1677b8,depthTest:false})
+  );
+  dot.position.copy(world);
+  dot.renderOrder=999;
+  scene.add(dot);
+  measureDots.push(dot);
+
+  if(measurePoints.length===2){
+    const g=new THREE.BufferGeometry().setFromPoints(measurePoints);
+    const m=new THREE.LineBasicMaterial({color:0x1677b8,depthTest:false});
+    measureLine=new THREE.Line(g,m);measureLine.renderOrder=999;scene.add(measureLine);
+
+    const dist=measurePoints[0].distanceTo(measurePoints[1]);
+    const txt=dist>=1?`${dist.toFixed(3)} m`:`${(dist*100).toFixed(1)} cm`;
+    if(measureResult)measureResult.textContent=`Afstand: ${txt}`;
+
+    measureLabel=document.createElement('div');
+    measureLabel.className='measure-label';
+    measureLabel.textContent=txt;
+    viewport.appendChild(measureLabel);
+    updateMeasureLabel();
+
+    measureMode=false;
+    $('measureButton').classList.remove('active');
+    if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root);
+    setStatus(`Måling: ${txt}`);
+  }
+}
+function updateMeasureLabel(){
+  if(!measureLabel||measurePoints.length<2)return;
+  const mid=measurePoints[0].clone().add(measurePoints[1]).multiplyScalar(.5).project(camera);
+  const r=renderer.domElement.getBoundingClientRect();
+  measureLabel.style.left=`${(mid.x*.5+.5)*r.width}px`;
+  measureLabel.style.top=`${(-mid.y*.5+.5)*r.height}px`;
+  measureLabel.style.transform='translate(-50%,-50%)';
+}
+renderer.domElement.addEventListener('pointerdown',e=>{
+  if(!measureMode||cropMode)return;
+  e.preventDefault();
+  screenToNdc(e);
+  measureRaycaster.setFromCamera(measurePointer,camera);
+  const hit=measureRaycaster.intersectObjects(visibleMeshes(),false)[0];
+  if(hit)addMeasurePoint(hit.point);
+},{capture:true});
+
+// ---------- Export frame ----------
+function exportRatioValue(){
+  const v=$('exportRatio').value;
+  if(v==='screen'){
+    const r=viewport.getBoundingClientRect();
+    return r.width/Math.max(r.height,1);
+  }
+  if(v==='custom'){
+    const w=Math.max(parseInt($('exportWidth').value)||1,1);
+    const h=Math.max(parseInt($('exportHeight').value)||1,1);
+    return w/h;
+  }
+  return parseFloat(v)||1.5;
+}
+function syncExportDimensions(source='ratio'){
+  const ratio=exportRatioValue();
+  const preset=$('exportPreset').value;
+
+  if(preset==='screen'){
+    const r=viewport.getBoundingClientRect();
+    $('exportWidth').value=Math.round(r.width);
+    $('exportHeight').value=Math.round(r.height);
+  }else if(preset!=='custom'){
+    const w=parseInt(preset);
+    $('exportWidth').value=w;
+    $('exportHeight').value=Math.round(w/ratio);
+  }else if(source==='width' && $('exportRatio').value!=='custom'){
+    const w=Math.max(parseInt($('exportWidth').value)||1,1);
+    $('exportHeight').value=Math.round(w/ratio);
+  }else if(source==='height' && $('exportRatio').value!=='custom'){
+    const h=Math.max(parseInt($('exportHeight').value)||1,1);
+    $('exportWidth').value=Math.round(h*ratio);
+  }
+  updateExportFrame();
+}
+function updateExportFrame(){
+  if(!exportFrameVisible)return;
+  const r=viewport.getBoundingClientRect();
+  const ratio=exportRatioValue();
+  const margin=28;
+  const maxW=Math.max(r.width-margin*2,20),maxH=Math.max(r.height-margin*2,20);
+  let w=maxW,h=w/ratio;
+  if(h>maxH){h=maxH;w=h*ratio}
+  exportFrame.style.width=`${w}px`;
+  exportFrame.style.height=`${h}px`;
+  exportFrame.style.left=`${(r.width-w)/2}px`;
+  exportFrame.style.top=`${(r.height-h)/2}px`;
+}
+function toggleExportFrame(){
+  exportFrameVisible=!exportFrameVisible;
+  exportFrame.classList.toggle('active',exportFrameVisible);
+  $('toggleExportFrameButton').textContent=exportFrameVisible?'Skjul eksport-ramme':'Vis eksport-ramme';
+  if(exportFrameVisible){syncExportDimensions();updateExportFrame()}
+}
+function fitToExportFrame(){
+  if(!selectedModel){setStatus('Vælg først en model.');return}
+  if(!exportFrameVisible){exportFrameVisible=true;exportFrame.classList.add('active')}
+  updateExportFrame();
+  // Reuse the stable model framing, then zoom out slightly for breathing room.
+  frameCurrentView();
+  if(camera.isPerspectiveCamera){
+    const dir=camera.position.clone().sub(orbit.target);
+    camera.position.copy(orbit.target).add(dir.multiplyScalar(1.12));
+  }else{
+    camera.zoom*=.90;
+  }
+  camera.updateProjectionMatrix();orbit.update();
+  setStatus('Model tilpasset eksport-rammen.');
+}
+function exportFrameRect(){
+  const vr=viewport.getBoundingClientRect();
+  if(!exportFrameVisible)return {x:0,y:0,w:vr.width,h:vr.height};
+  const fr=exportFrame.getBoundingClientRect();
+  return {x:fr.left-vr.left,y:fr.top-vr.top,w:fr.width,h:fr.height};
+}
+async function renderExportBlob(){
+  const outW=Math.max(200,Math.min(12000,parseInt($('exportWidth').value)||3000));
+  const outH=Math.max(200,Math.min(12000,parseInt($('exportHeight').value)||2000));
+  const frame=exportFrameRect();
+
+  const oldSize=new THREE.Vector2();renderer.getSize(oldSize);
+  const oldPR=renderer.getPixelRatio();
+  const oldAspect=perspectiveCamera.aspect;
+  const oldOrtho={l:orthographicCamera.left,r:orthographicCamera.right,t:orthographicCamera.top,b:orthographicCamera.bottom};
+
+  // Match output aspect to export frame without changing camera target.
+  renderer.setPixelRatio(1);
+  renderer.setSize(outW,outH,false);
+
+  const ratio=outW/outH;
+  if(camera.isPerspectiveCamera){
+    perspectiveCamera.aspect=ratio;
+  }else{
+    const cy=(camera.top+camera.bottom)/2;
+    const hh=(camera.top-camera.bottom)/2;
+    const cx=(camera.left+camera.right)/2;
+    const hw=hh*ratio;
+    camera.left=cx-hw;camera.right=cx+hw;camera.top=cy+hh;camera.bottom=cy-hh;
+  }
+  camera.updateProjectionMatrix();
+
+  const gridWasVisible=grid.visible;
+  renderer.render(scene,camera);
+
+  const blob=await new Promise(resolve=>renderer.domElement.toBlob(resolve,'image/png'));
+
+  renderer.setPixelRatio(oldPR);
+  renderer.setSize(oldSize.x,oldSize.y,false);
+  perspectiveCamera.aspect=oldAspect;
+  Object.assign(orthographicCamera,{left:oldOrtho.l,right:oldOrtho.r,top:oldOrtho.t,bottom:oldOrtho.b});
+  camera.updateProjectionMatrix();
+  return blob;
+}
+async function savePng(){
+  const blob=await renderExportBlob();
+  if(!blob)return;
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`ArchaeoPlan-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  setStatus('PNG eksporteret.');
+}
+async function shareImage(){
+  const blob=await renderExportBlob();
+  if(!blob)return;
+  const file=new File([blob],'ArchaeoPlan.png',{type:'image/png'});
+  if(navigator.canShare?.({files:[file]}) && navigator.share){
+    try{
+      await navigator.share({files:[file],title:'ArchaeoPlan'});
+      setStatus('Billede sendt til iOS deleark.');
+      return;
+    }catch(err){
+      if(err?.name==='AbortError')return;
+    }
+  }
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='ArchaeoPlan.png';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  setStatus('Deling understøttes ikke her – PNG blev gemt i stedet.');
+}
 
 // ---------- Undo / Redo ----------
 const undoStack=[],redoStack=[];
@@ -530,7 +766,21 @@ function redo(){
   a.redo();undoStack.push(a);updateHistoryButtons();setStatus(`Gentaget: ${a.label}`);
 }
 
-$('newProjectButton').onclick=newProject;$('undoButton').onclick=undo;$('redoButton').onclick=redo;$('fitModelButton').onclick=fitSelectedModel;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);$('exportButton').onclick=exportPng;
+
+$('measureButton').onclick=toggleMeasure;
+$('clearMeasureButton').onclick=clearMeasurement;
+
+$('toggleExportFrameButton').onclick=toggleExportFrame;
+$('fitToExportFrameButton').onclick=fitToExportFrame;
+$('exportPngButton').onclick=savePng;
+$('shareImageButton').onclick=shareImage;
+
+$('exportRatio').onchange=()=>syncExportDimensions('ratio');
+$('exportPreset').onchange=()=>syncExportDimensions('preset');
+$('exportWidth').onchange=()=>syncExportDimensions('width');
+$('exportHeight').onchange=()=>syncExportDimensions('height');
+
+$('newProjectButton').onclick=newProject;$('undoButton').onclick=undo;$('redoButton').onclick=redo;$('fitModelButton').onclick=fitSelectedModel;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);
 $('perspectiveButton').onclick=()=>switchCamera(false);$('orthographicButton').onclick=()=>switchCamera(true);$('gridToggle').onchange=e=>grid.visible=e.target.checked;
 $('translateButton').onclick=()=>{transform.setMode('translate');$('translateButton').classList.add('active');$('rotateButton').classList.remove('active')};
 $('rotateButton').onclick=()=>{transform.setMode('rotate');$('rotateButton').classList.add('active');$('translateButton').classList.remove('active')};
@@ -550,4 +800,4 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
 window.addEventListener('resize',resize);resize();resetViewToOrigin(false);updateCropButtons();updateHistoryButtons();setStatus(`ArchaeoPlan v${VERSION} klar.`);
-(function animate(){requestAnimationFrame(animate);orbit.update();renderer.render(scene,camera)})();
+(function animate(){requestAnimationFrame(animate);orbit.update();updateMeasureLabel();renderer.render(scene,camera)})();

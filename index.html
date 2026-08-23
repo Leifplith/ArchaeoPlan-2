@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.12 clean</title>
-  <link rel="stylesheet" href="style.css?v=0.2.12-clean">
+  <title>ArchaeoPlan v0.2.13</title>
+  <link rel="stylesheet" href="style.css?v=0.2.13">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.12 clean</span>
+      <span class="version">v0.2.13</span>
     </div>
     <div class="header-actions">
       <button id="newProjectButton">Nyt projekt</button>
@@ -21,7 +21,7 @@
       <button id="undoButton" title="Fortryd" aria-label="Fortryd">↶</button>
       <button id="redoButton" title="Annuller fortryd" aria-label="Annuller fortryd">↷</button>
       <button id="fitModelButton" title="Tilpas den valgte model til vinduet">Tilpas model</button>
-      <button id="exportButton">Gem PNG</button>
+      
     </div>
   </header>
 
@@ -91,12 +91,52 @@
     </section>
 
     <section>
-      <h2>PNG-eksport</h2>
-      <div class="field-grid two">
-        <label>Bredde<input id="exportWidth" type="number" value="3000" min="200" max="10000"></label>
-        <label>Højde<input id="exportHeight" type="number" value="2000" min="200" max="10000"></label>
+      <h2>Måling</h2>
+      <div class="button-grid two">
+        <button id="measureButton">Mål afstand</button>
+        <button id="clearMeasureButton">Ryd måling</button>
       </div>
+      <p id="measureResult" class="muted small">Ingen måling.</p>
     </section>
+
+    <section>
+      <h2>Eksport-ramme</h2>
+      <div class="field-grid two">
+        <label>Format
+          <select id="exportRatio">
+            <option value="screen">Skærmformat</option>
+            <option value="1.5">3:2</option>
+            <option value="1.3333333333">4:3</option>
+            <option value="1">1:1</option>
+            <option value="1.41421356237">A-format liggende</option>
+            <option value="0.70710678118">A-format stående</option>
+            <option value="custom">Frit format</option>
+          </select>
+        </label>
+        <label>Opløsning
+          <select id="exportPreset">
+            <option value="screen">Skærm</option>
+            <option value="3000">3000 px bredde</option>
+            <option value="6000">6000 px bredde</option>
+            <option value="custom">Brugerdefineret</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-grid two">
+        <label>Bredde<input id="exportWidth" type="number" value="3000" min="200" max="12000"></label>
+        <label>Højde<input id="exportHeight" type="number" value="2000" min="200" max="12000"></label>
+      </div>
+      <div class="button-grid two">
+        <button id="toggleExportFrameButton">Vis eksport-ramme</button>
+        <button id="fitToExportFrameButton">Tilpas model til ramme</button>
+      </div>
+      <div class="button-grid two">
+        <button id="exportPngButton">Gem PNG</button>
+        <button id="shareImageButton">Del / Gem til Fotos</button>
+      </div>
+      <p class="muted small">Det synlige udsnit inden for rammen eksporteres. Opløsningen ændrer kun detaljegraden, ikke udsnittet.</p>
+    </section>
+
 
     <section class="about">
       <h2>Dokumentationsvisning</h2>
@@ -112,11 +152,12 @@
       <g id="cropPoints"></g>
     </svg>
     <div id="cropHint"></div>
+    <div id="exportFrame" aria-hidden="true"></div>
     <div id="dropZone">
       <strong>Slip filer her</strong>
       <span>GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.12 clean klar.</div>
+    <div id="status">ArchaeoPlan v0.2.13 klar.</div>
   </main>
 </div>
 
@@ -128,6 +169,6 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.12-clean"></script>
+<script type="module" src="app.js?v=0.2.13"></script>
 </body>
 </html>
