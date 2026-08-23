@@ -1,4 +1,4 @@
-# ArchaeoPlan v0.2.6
+# ArchaeoPlan v0.2.9
 
 Ren genopbygning af ArchaeoPlan.
 
@@ -28,4 +28,29 @@ Ved OBJ vælges OBJ, MTL og alle teksturbilleder samtidigt.
 - Modellens koordinater ændres ikke; kun kameraet flyttes.
 
 ## Bemærkning
-Beskæring i v0.2.6 sker ved eksisterende trekantgrænser. Der skabes endnu ikke nye trekanter præcis langs den tegnede kant.
+Beskæring i v0.2.8 sker ved eksisterende trekantgrænser. Der skabes endnu ikke nye trekanter præcis langs den tegnede kant.
+
+
+## v0.2.8
+- Ny kameratilpasning beregner modellens faktiske projicerede udstrækning i den valgte synsretning.
+- Import og standardvisninger centreres uden at flytte modellens koordinater.
+- Ny **Tilpas model**-knap.
+- **↶ Fortryd** og **↷ Annuller fortryd**.
+- Historik for flytning, drejning, numeriske transformationsændringer og beskæring.
+- Kameraets almindelige zoom/rotation/panorering lægges ikke i historikken.
+- Den fungerende frihåndsbeskæring fra v0.2.6 er bevaret.
+
+
+## v0.2.8
+- Rettelse af selve kameraets grundposition.
+- Et tomt projekt viser nu verdens nulpunkt (0,0,0) i centrum af arbejdsfeltet.
+- **Nyt projekt** nulstiller kamera og OrbitControls til verdens nulpunkt.
+- Når en model findes, bruges fortsat modellens geometriske bounding box til centrering og indramning.
+- Modeller og deres originale koordinater flyttes ikke.
+- Beskæring og Undo/Redo fra v0.2.7 er ikke ændret.
+
+
+## v0.2.9
+- Cache-busting på `app.js` og `style.css`, så Safari/GitHub Pages ikke genbruger en ældre JavaScript-version.
+- Kamera-reset og centrering fra v0.2.8 bliver dermed faktisk indlæst.
+- Ingen ændringer i den fungerende beskæring.
