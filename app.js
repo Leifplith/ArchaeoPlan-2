@@ -11,9 +11,9 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.15';
+const VERSION='0.2.17';
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),modelList=$('modelList');
+const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
 const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
@@ -46,6 +46,12 @@ orbit.update();
 const transform=new TransformControls(camera,renderer.domElement);
 transform.setMode('translate');
 transform.addEventListener('dragging-changed',e=>{
+  if(transform.object===underlay){
+    if(underlay?.userData.locked){transform.detach();orbit.enabled=true;return}
+    orbit.enabled=!e.value;
+    if(!e.value)updateUnderlayUi();
+    return;
+  }
   if(selectedModel?.root.userData.locked){transform.detach();orbit.enabled=true;return}
   orbit.enabled=!e.value;
   if(e.value){
@@ -73,9 +79,290 @@ let cropMode=false,cropTool='freehand',cropPoints=[],cropDrawing=false,cropPoint
 let measureMode=false,measurePoints=[],measureLine=null,measureDots=[],measureLabel=null;
 let exportFrameVisible=false;
 let savedViews=[];
+let preparedProject=null;
+let underlay=null,underlayImageData=null,underlaySelected=false;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
+
+
+// ---------- Language / i18n ----------
+const I18N={
+da:{
+  underlay:'Grundplan / underlag', loadUnderlay:'Indlæs grundplan', removeUnderlay:'Fjern grundplan', underlayMove:'Flyt', underlayRotate:'Drej', underlayScale:'Skala', underlayOpacity:'Gennemsigtighed', underlayVisible:'Vis grundplan', underlayExport:'Medtag i eksport', underlayHelp:'Grundplanen ligger som et særskilt, plant underlag under 3D-modellerne. Tilpas den og lås den derefter.', underlayLoaded:'Grundplan indlæst.', underlayRemoved:'Grundplan fjernet.', underlayLocked:'Grundplanen er låst.', underlayUnlocked:'Grundplanen er låst op.', underlaySelect:'Indlæs først en grundplan.', underlayFileError:'Kunne ikke indlæse grundplanen: {error}',
+
+  languageName:'Dansk',
+  newProject:'Nyt projekt', saveProject:'Gem projekt', openProject:'Åbn projekt', addFile:'Tilføj fil',
+  undo:'Fortryd', redo:'Annuller fortryd', fitModel:'Tilpas model',
+  view:'Visning', perspective:'Perspektiv', orthographic:'Ortografisk',
+  top:'Top', front:'Front', right:'Højre', bottom:'Bund', back:'Bag', left:'Venstre', showGrid:'Vis gitter',
+  models:'Modeller', noModels:'Ingen modeller åbnet.', selectedModel:'Valgt model',
+  move:'Flyt', rotate:'Drej', lock:'Lås', unlock:'Lås op',
+  crop:'Beskæring', cropHelp:'Vælg en model. Vælg frihånd eller polygon. Start beskæring og tegn direkte på modellen.',
+  freehand:'Frihånd', polygon:'Polygon', startCrop:'Start beskæring', cancel:'Annullér',
+  keepInside:'Behold indenfor', removeInside:'Fjern indenfor',
+  cropNote:'Originalen bevares. Beskæringen laves som en ny kopi.',
+  savedViews:'Gemte visninger', saveView:'Gem visning', clearViews:'Ryd visninger', noSavedViews:'Ingen gemte visninger.',
+  measure:'Måling', measureDistance:'Mål afstand', clearMeasure:'Ryd måling', noMeasurement:'Ingen måling.',
+  exportFrame:'Eksport-ramme', format:'Format', resolution:'Opløsning', width:'Bredde', height:'Højde',
+  screenFormat:'Skærmformat', aLandscape:'A-format liggende', aPortrait:'A-format stående', customFormat:'Frit format',
+  screen:'Skærm', px3000:'3000 px bredde', px6000:'6000 px bredde', custom:'Brugerdefineret',
+  showExportFrame:'Vis eksport-ramme', hideExportFrame:'Skjul eksport-ramme', fitExport:'Tilpas model til ramme',
+  savePng:'Gem PNG', sharePhotos:'Del / Gem til Fotos',
+  annotations:'Eksportmarkeringer', showScale:'Vis målestok', length:'Længde', automatic:'Automatisk',
+  position:'Placering', bottomLeft:'Nederst venstre', bottomRight:'Nederst højre', topLeft:'Øverst venstre', topRight:'Øverst højre',
+  showNorth:'Vis nordpil', rotationDeg:'Rotation °',
+  scaleNorthNote:'Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.',
+  exportNote:'Det synlige udsnit inden for rammen eksporteres. Opløsningen ændrer kun detaljegraden, ikke udsnittet.',
+  docs:'Dokumentationsvisning', docsText:'GLB- og OBJ-teksturer bevares. ArchaeoPlan ændrer ikke de originale teksturfiler.',
+  drop:'Slip filer her', dropText:'GLB, GLTF, OBJ + MTL + teksturer eller PLY',
+  projectReady:'Projektet er klar', projectReadyText:'Vælg hvor projektfilen skal gemmes.',
+  chooseLocation:'Vælg placering…', cancelSave:'Annullér',
+  projectNamePrompt:'Navn på projektfilen:', viewNamePrompt:'Navn på visningen:', clearViewsConfirm:'Ryd alle gemte visninger?',
+  replaceProjectConfirm:'Åbn projektet og erstat det nuværende arbejdsområde?',
+  newProjectConfirm:'Opret nyt projekt og fjern modellerne fra arbejdsfladen?',
+  loaded:'Indlæst: {name}', modelLocked:'Modellen er låst.', modelUnlocked:'Modellen er låst op.',
+  selectModel:'Vælg først en model.', noModelFit:'Ingen model at tilpasse.', modelFit:'Valgt model tilpasset og centreret.',
+  centered:'{name}: centreret', selectModelFile:'Vælg en model-fil.', fileError:'Fejl ved {name}: {error}',
+  newEmpty:'Nyt tomt projekt – centrum (0,0,0).', toolSelected:'{tool} valgt.', cropActive:'Beskæring aktiv.',
+  strokeSaved:'Strøg gemt. Fortsæt et andet sted, eller vælg Behold/Fjern.',
+  cropCreated:'Beskåret kopi oprettet. Originalen er bevaret og skjult.',
+  viewSaved:'Visning "{name}" gemt.', viewRestored:'Visning "{name}" hentet.', viewsCleared:'Gemte visninger ryddet.',
+  measureActive:'Måling aktiv: tryk to punkter på modellen.', measureEnded:'Måling afsluttet.', measureValue:'Måling: {value}',
+  exportFit:'Model tilpasset eksport-rammen.', pngExported:'PNG eksporteret.', imageShare:'Billede sendt til iOS deleark.',
+  imageFallback:'Deling understøttes ikke her – PNG blev gemt i stedet.',
+  noModelsToSave:'Der er ingen modeller at gemme i projektet.', preparingProject:'Forbereder projekt…',
+  savingModel:'Gemmer projekt: model {i} af {n}…', packingProject:'Pakker projektfil…',
+  projectPrepared:'Projektet er klar til at blive gemt.', projectSaved:'Projekt gemt: {name}',
+  saveError:'Kunne ikke gemme projekt: {error}', openingProject:'Åbner projektfil…', openingCancelled:'Åbning annulleret.',
+  openingModel:'Åbner projekt: model {i} af {n}…', projectOpened:'Projekt åbnet: {name}', openError:'Kunne ikke åbne projekt: {error}',
+  undone:'Fortrudt: {label}', redone:'Gentaget: {label}', orthoScaleOnly:'Målestok er kun metrisk korrekt i ortografisk visning.',
+  ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
+},
+de:{
+  underlay:'Grundplan / Unterlage', loadUnderlay:'Grundplan laden', removeUnderlay:'Grundplan entfernen', underlayMove:'Verschieben', underlayRotate:'Drehen', underlayScale:'Skalierung', underlayOpacity:'Transparenz', underlayVisible:'Grundplan anzeigen', underlayExport:'Beim Export einbeziehen', underlayHelp:'Der Grundplan liegt als separate ebene Unterlage unter den 3D-Modellen. Ausrichten und anschließend sperren.', underlayLoaded:'Grundplan geladen.', underlayRemoved:'Grundplan entfernt.', underlayLocked:'Der Grundplan ist gesperrt.', underlayUnlocked:'Der Grundplan ist entsperrt.', underlaySelect:'Bitte zuerst einen Grundplan laden.', underlayFileError:'Grundplan konnte nicht geladen werden: {error}',
+
+  newProject:'Neues Projekt', saveProject:'Projekt speichern', openProject:'Projekt öffnen', addFile:'Datei hinzufügen',
+  undo:'Rückgängig', redo:'Wiederholen', fitModel:'Modell einpassen',
+  view:'Ansicht', perspective:'Perspektivisch', orthographic:'Orthografisch',
+  top:'Oben', front:'Vorne', right:'Rechts', bottom:'Unten', back:'Hinten', left:'Links', showGrid:'Raster anzeigen',
+  models:'Modelle', noModels:'Keine Modelle geöffnet.', selectedModel:'Ausgewähltes Modell',
+  move:'Verschieben', rotate:'Drehen', lock:'Sperren', unlock:'Entsperren',
+  crop:'Beschneiden', cropHelp:'Modell wählen. Freihand oder Polygon wählen. Beschneiden starten und direkt auf dem Modell zeichnen.',
+  freehand:'Freihand', polygon:'Polygon', startCrop:'Beschneiden starten', cancel:'Abbrechen',
+  keepInside:'Innen behalten', removeInside:'Innen entfernen', cropNote:'Das Original bleibt erhalten. Der Beschnitt wird als neue Kopie erstellt.',
+  savedViews:'Gespeicherte Ansichten', saveView:'Ansicht speichern', clearViews:'Ansichten löschen', noSavedViews:'Keine gespeicherten Ansichten.',
+  measure:'Messen', measureDistance:'Abstand messen', clearMeasure:'Messung löschen', noMeasurement:'Keine Messung.',
+  exportFrame:'Exportrahmen', format:'Format', resolution:'Auflösung', width:'Breite', height:'Höhe',
+  screenFormat:'Bildschirmformat', aLandscape:'A-Format Querformat', aPortrait:'A-Format Hochformat', customFormat:'Freies Format',
+  screen:'Bildschirm', px3000:'3000 px Breite', px6000:'6000 px Breite', custom:'Benutzerdefiniert',
+  showExportFrame:'Exportrahmen anzeigen', hideExportFrame:'Exportrahmen ausblenden', fitExport:'Modell an Rahmen anpassen',
+  savePng:'PNG speichern', sharePhotos:'Teilen / In Fotos sichern',
+  annotations:'Exportmarkierungen', showScale:'Maßstab anzeigen', length:'Länge', automatic:'Automatisch',
+  position:'Position', bottomLeft:'Unten links', bottomRight:'Unten rechts', topLeft:'Oben links', topRight:'Oben rechts',
+  showNorth:'Nordpfeil anzeigen', rotationDeg:'Drehung °',
+  scaleNorthNote:'Der Maßstab ist in der orthografischen Ansicht metrisch korrekt. Der Nordpfeil wird vorerst manuell gedreht.',
+  exportNote:'Der sichtbare Ausschnitt innerhalb des Rahmens wird exportiert. Die Auflösung ändert nur den Detailgrad, nicht den Ausschnitt.',
+  docs:'Dokumentationsansicht', docsText:'GLB- und OBJ-Texturen bleiben erhalten. ArchaeoPlan verändert die Originaltexturen nicht.',
+  drop:'Dateien hier ablegen', dropText:'GLB, GLTF, OBJ + MTL + Texturen oder PLY',
+  projectReady:'Projekt ist bereit', projectReadyText:'Wählen Sie, wo die Projektdatei gespeichert werden soll.',
+  chooseLocation:'Speicherort wählen…', cancelSave:'Abbrechen',
+  projectNamePrompt:'Name der Projektdatei:', viewNamePrompt:'Name der Ansicht:', clearViewsConfirm:'Alle gespeicherten Ansichten löschen?',
+  replaceProjectConfirm:'Projekt öffnen und den aktuellen Arbeitsbereich ersetzen?', newProjectConfirm:'Neues Projekt erstellen und Modelle von der Arbeitsfläche entfernen?',
+  loaded:'Geladen: {name}', modelLocked:'Das Modell ist gesperrt.', modelUnlocked:'Das Modell ist entsperrt.',
+  selectModel:'Bitte zuerst ein Modell wählen.', noModelFit:'Kein Modell zum Einpassen.', modelFit:'Ausgewähltes Modell eingepasst und zentriert.',
+  centered:'{name}: zentriert', selectModelFile:'Bitte eine Modelldatei wählen.', fileError:'Fehler bei {name}: {error}',
+  newEmpty:'Neues leeres Projekt – Zentrum (0,0,0).', toolSelected:'{tool} gewählt.', cropActive:'Beschneiden aktiv.',
+  strokeSaved:'Strich gespeichert. An anderer Stelle fortfahren oder Innen behalten/entfernen wählen.',
+  cropCreated:'Beschnittene Kopie erstellt. Original erhalten und ausgeblendet.',
+  viewSaved:'Ansicht „{name}“ gespeichert.', viewRestored:'Ansicht „{name}“ geladen.', viewsCleared:'Gespeicherte Ansichten gelöscht.',
+  measureActive:'Messung aktiv: zwei Punkte auf dem Modell antippen.', measureEnded:'Messung beendet.', measureValue:'Messung: {value}',
+  exportFit:'Modell an Exportrahmen angepasst.', pngExported:'PNG exportiert.', imageShare:'Bild an das iOS-Teilen-Menü übergeben.',
+  imageFallback:'Teilen wird hier nicht unterstützt – PNG wurde stattdessen gespeichert.',
+  noModelsToSave:'Keine Modelle im Projekt zum Speichern.', preparingProject:'Projekt wird vorbereitet…',
+  savingModel:'Projekt speichern: Modell {i} von {n}…', packingProject:'Projektdatei wird gepackt…',
+  projectPrepared:'Projekt kann jetzt gespeichert werden.', projectSaved:'Projekt gespeichert: {name}',
+  saveError:'Projekt konnte nicht gespeichert werden: {error}', openingProject:'Projektdatei wird geöffnet…', openingCancelled:'Öffnen abgebrochen.',
+  openingModel:'Projekt öffnen: Modell {i} von {n}…', projectOpened:'Projekt geöffnet: {name}', openError:'Projekt konnte nicht geöffnet werden: {error}',
+  undone:'Rückgängig: {label}', redone:'Wiederholt: {label}', orthoScaleOnly:'Der Maßstab ist nur in der orthografischen Ansicht metrisch korrekt.',
+  ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
+},
+en:{
+  underlay:'Plan / underlay', loadUnderlay:'Load plan', removeUnderlay:'Remove plan', underlayMove:'Move', underlayRotate:'Rotate', underlayScale:'Scale', underlayOpacity:'Opacity', underlayVisible:'Show plan', underlayExport:'Include in export', underlayHelp:'The plan is a separate flat underlay beneath the 3D models. Align it, then lock it.', underlayLoaded:'Plan loaded.', underlayRemoved:'Plan removed.', underlayLocked:'The plan is locked.', underlayUnlocked:'The plan is unlocked.', underlaySelect:'Load a plan first.', underlayFileError:'Could not load plan: {error}',
+
+  newProject:'New project', saveProject:'Save project', openProject:'Open project', addFile:'Add file',
+  undo:'Undo', redo:'Redo', fitModel:'Fit model',
+  view:'View', perspective:'Perspective', orthographic:'Orthographic',
+  top:'Top', front:'Front', right:'Right', bottom:'Bottom', back:'Back', left:'Left', showGrid:'Show grid',
+  models:'Models', noModels:'No models open.', selectedModel:'Selected model',
+  move:'Move', rotate:'Rotate', lock:'Lock', unlock:'Unlock',
+  crop:'Crop', cropHelp:'Select a model. Choose freehand or polygon. Start cropping and draw directly on the model.',
+  freehand:'Freehand', polygon:'Polygon', startCrop:'Start crop', cancel:'Cancel',
+  keepInside:'Keep inside', removeInside:'Remove inside', cropNote:'The original is preserved. Cropping creates a new copy.',
+  savedViews:'Saved views', saveView:'Save view', clearViews:'Clear views', noSavedViews:'No saved views.',
+  measure:'Measurement', measureDistance:'Measure distance', clearMeasure:'Clear measurement', noMeasurement:'No measurement.',
+  exportFrame:'Export frame', format:'Format', resolution:'Resolution', width:'Width', height:'Height',
+  screenFormat:'Screen format', aLandscape:'A-format landscape', aPortrait:'A-format portrait', customFormat:'Custom format',
+  screen:'Screen', px3000:'3000 px width', px6000:'6000 px width', custom:'Custom',
+  showExportFrame:'Show export frame', hideExportFrame:'Hide export frame', fitExport:'Fit model to frame',
+  savePng:'Save PNG', sharePhotos:'Share / Save to Photos',
+  annotations:'Export annotations', showScale:'Show scale bar', length:'Length', automatic:'Automatic',
+  position:'Position', bottomLeft:'Bottom left', bottomRight:'Bottom right', topLeft:'Top left', topRight:'Top right',
+  showNorth:'Show north arrow', rotationDeg:'Rotation °',
+  scaleNorthNote:'The scale bar is metrically correct in orthographic view. The north arrow is rotated manually for now.',
+  exportNote:'The visible area inside the frame is exported. Resolution changes detail only, not the crop.',
+  docs:'Documentation view', docsText:'GLB and OBJ textures are preserved. ArchaeoPlan does not alter the original texture files.',
+  drop:'Drop files here', dropText:'GLB, GLTF, OBJ + MTL + textures or PLY',
+  projectReady:'Project is ready', projectReadyText:'Choose where to save the project file.',
+  chooseLocation:'Choose location…', cancelSave:'Cancel',
+  projectNamePrompt:'Project file name:', viewNamePrompt:'View name:', clearViewsConfirm:'Clear all saved views?',
+  replaceProjectConfirm:'Open the project and replace the current workspace?', newProjectConfirm:'Create a new project and remove the models from the workspace?',
+  loaded:'Loaded: {name}', modelLocked:'The model is locked.', modelUnlocked:'The model is unlocked.',
+  selectModel:'Select a model first.', noModelFit:'No model to fit.', modelFit:'Selected model fitted and centred.',
+  centered:'{name}: centred', selectModelFile:'Select a model file.', fileError:'Error with {name}: {error}',
+  newEmpty:'New empty project – centre (0,0,0).', toolSelected:'{tool} selected.', cropActive:'Cropping active.',
+  strokeSaved:'Stroke saved. Continue elsewhere, or choose Keep/Remove.',
+  cropCreated:'Cropped copy created. Original preserved and hidden.',
+  viewSaved:'View “{name}” saved.', viewRestored:'View “{name}” restored.', viewsCleared:'Saved views cleared.',
+  measureActive:'Measurement active: tap two points on the model.', measureEnded:'Measurement ended.', measureValue:'Measurement: {value}',
+  exportFit:'Model fitted to export frame.', pngExported:'PNG exported.', imageShare:'Image sent to the iOS share sheet.',
+  imageFallback:'Sharing is not supported here – PNG was saved instead.',
+  noModelsToSave:'There are no models to save in the project.', preparingProject:'Preparing project…',
+  savingModel:'Saving project: model {i} of {n}…', packingProject:'Packing project file…',
+  projectPrepared:'Project is ready to save.', projectSaved:'Project saved: {name}',
+  saveError:'Could not save project: {error}', openingProject:'Opening project file…', openingCancelled:'Opening cancelled.',
+  openingModel:'Opening project: model {i} of {n}…', projectOpened:'Project opened: {name}', openError:'Could not open project: {error}',
+  undone:'Undone: {label}', redone:'Redone: {label}', orthoScaleOnly:'The scale bar is only metrically correct in orthographic view.',
+  ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
+},
+fr:{
+  underlay:'Plan / fond', loadUnderlay:'Charger le plan', removeUnderlay:'Supprimer le plan', underlayMove:'Déplacer', underlayRotate:'Tourner', underlayScale:'Échelle', underlayOpacity:'Opacité', underlayVisible:'Afficher le plan', underlayExport:'Inclure dans l’export', underlayHelp:'Le plan est un fond plat séparé sous les modèles 3D. Ajustez-le puis verrouillez-le.', underlayLoaded:'Plan chargé.', underlayRemoved:'Plan supprimé.', underlayLocked:'Le plan est verrouillé.', underlayUnlocked:'Le plan est déverrouillé.', underlaySelect:'Chargez d’abord un plan.', underlayFileError:'Impossible de charger le plan : {error}',
+
+  newProject:'Nouveau projet', saveProject:'Enregistrer le projet', openProject:'Ouvrir le projet', addFile:'Ajouter un fichier',
+  undo:'Annuler', redo:'Rétablir', fitModel:'Ajuster le modèle',
+  view:'Vue', perspective:'Perspective', orthographic:'Orthographique',
+  top:'Dessus', front:'Face', right:'Droite', bottom:'Dessous', back:'Arrière', left:'Gauche', showGrid:'Afficher la grille',
+  models:'Modèles', noModels:'Aucun modèle ouvert.', selectedModel:'Modèle sélectionné',
+  move:'Déplacer', rotate:'Tourner', lock:'Verrouiller', unlock:'Déverrouiller',
+  crop:'Découpage', cropHelp:'Sélectionnez un modèle. Choisissez main levée ou polygone. Lancez le découpage et dessinez directement sur le modèle.',
+  freehand:'Main levée', polygon:'Polygone', startCrop:'Démarrer le découpage', cancel:'Annuler',
+  keepInside:'Conserver l’intérieur', removeInside:'Supprimer l’intérieur', cropNote:'L’original est conservé. Le découpage crée une nouvelle copie.',
+  savedViews:'Vues enregistrées', saveView:'Enregistrer la vue', clearViews:'Effacer les vues', noSavedViews:'Aucune vue enregistrée.',
+  measure:'Mesure', measureDistance:'Mesurer une distance', clearMeasure:'Effacer la mesure', noMeasurement:'Aucune mesure.',
+  exportFrame:'Cadre d’export', format:'Format', resolution:'Résolution', width:'Largeur', height:'Hauteur',
+  screenFormat:'Format écran', aLandscape:'Format A paysage', aPortrait:'Format A portrait', customFormat:'Format libre',
+  screen:'Écran', px3000:'Largeur 3000 px', px6000:'Largeur 6000 px', custom:'Personnalisé',
+  showExportFrame:'Afficher le cadre', hideExportFrame:'Masquer le cadre', fitExport:'Ajuster le modèle au cadre',
+  savePng:'Enregistrer PNG', sharePhotos:'Partager / Enregistrer dans Photos',
+  annotations:'Annotations d’export', showScale:'Afficher l’échelle', length:'Longueur', automatic:'Automatique',
+  position:'Position', bottomLeft:'Bas gauche', bottomRight:'Bas droite', topLeft:'Haut gauche', topRight:'Haut droite',
+  showNorth:'Afficher la flèche du nord', rotationDeg:'Rotation °',
+  scaleNorthNote:'L’échelle est métriquement correcte en vue orthographique. La flèche du nord est tournée manuellement pour le moment.',
+  exportNote:'La zone visible à l’intérieur du cadre est exportée. La résolution modifie uniquement le niveau de détail, pas le cadrage.',
+  docs:'Vue de documentation', docsText:'Les textures GLB et OBJ sont conservées. ArchaeoPlan ne modifie pas les fichiers de texture originaux.',
+  drop:'Déposez les fichiers ici', dropText:'GLB, GLTF, OBJ + MTL + textures ou PLY',
+  projectReady:'Le projet est prêt', projectReadyText:'Choisissez où enregistrer le fichier du projet.',
+  chooseLocation:'Choisir l’emplacement…', cancelSave:'Annuler',
+  projectNamePrompt:'Nom du fichier de projet :', viewNamePrompt:'Nom de la vue :', clearViewsConfirm:'Effacer toutes les vues enregistrées ?',
+  replaceProjectConfirm:'Ouvrir le projet et remplacer l’espace de travail actuel ?', newProjectConfirm:'Créer un nouveau projet et retirer les modèles de l’espace de travail ?',
+  loaded:'Chargé : {name}', modelLocked:'Le modèle est verrouillé.', modelUnlocked:'Le modèle est déverrouillé.',
+  selectModel:'Sélectionnez d’abord un modèle.', noModelFit:'Aucun modèle à ajuster.', modelFit:'Modèle sélectionné ajusté et centré.',
+  centered:'{name} : centré', selectModelFile:'Sélectionnez un fichier de modèle.', fileError:'Erreur avec {name} : {error}',
+  newEmpty:'Nouveau projet vide – centre (0,0,0).', toolSelected:'{tool} sélectionné.', cropActive:'Découpage actif.',
+  strokeSaved:'Trait enregistré. Continuez ailleurs ou choisissez Conserver/Supprimer.',
+  cropCreated:'Copie découpée créée. Original conservé et masqué.',
+  viewSaved:'Vue « {name} » enregistrée.', viewRestored:'Vue « {name} » restaurée.', viewsCleared:'Vues enregistrées effacées.',
+  measureActive:'Mesure active : touchez deux points sur le modèle.', measureEnded:'Mesure terminée.', measureValue:'Mesure : {value}',
+  exportFit:'Modèle ajusté au cadre d’export.', pngExported:'PNG exporté.', imageShare:'Image envoyée à la feuille de partage iOS.',
+  imageFallback:'Le partage n’est pas pris en charge ici – le PNG a été enregistré à la place.',
+  noModelsToSave:'Aucun modèle à enregistrer dans le projet.', preparingProject:'Préparation du projet…',
+  savingModel:'Enregistrement du projet : modèle {i} sur {n}…', packingProject:'Création du fichier projet…',
+  projectPrepared:'Le projet est prêt à être enregistré.', projectSaved:'Projet enregistré : {name}',
+  saveError:'Impossible d’enregistrer le projet : {error}', openingProject:'Ouverture du fichier projet…', openingCancelled:'Ouverture annulée.',
+  openingModel:'Ouverture du projet : modèle {i} sur {n}…', projectOpened:'Projet ouvert : {name}', openError:'Impossible d’ouvrir le projet : {error}',
+  undone:'Annulé : {label}', redone:'Rétabli : {label}', orthoScaleOnly:'L’échelle n’est métriquement correcte qu’en vue orthographique.',
+  ready:'ArchaeoPlan v{version} prêt.', savedToFiles:'Fichier projet envoyé à la feuille de partage.', downloaded:'Fichier projet téléchargé.'
+}
+};
+
+let currentLanguage=localStorage.getItem('archaeoplan-language')||'da';
+if(!I18N[currentLanguage])currentLanguage='da';
+
+function tr(key,vars={}){
+  const dict=I18N[currentLanguage]||I18N.da;
+  let s=dict[key]??I18N.da[key]??key;
+  for(const [k,v] of Object.entries(vars))s=s.replaceAll(`{${k}}`,String(v));
+  return s;
+}
+function setText(id,key){
+  const el=$(id);if(el)el.textContent=tr(key);
+}
+function setLabelPrefix(controlId,key){
+  const el=$(controlId);const label=el?.closest('label');if(!label)return;
+  const node=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.nodeValue.trim());
+  if(node)node.nodeValue=tr(key)+' ';
+}
+function setCheckText(controlId,key){
+  const el=$(controlId);const label=el?.closest('label');if(!label)return;
+  const nodes=[...label.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE);
+  const node=nodes[nodes.length-1];
+  if(node)node.nodeValue=' '+tr(key);
+}
+function setOption(selectId,value,key){
+  const opt=[...($(selectId)?.options||[])].find(o=>o.value===String(value));
+  if(opt)opt.textContent=tr(key);
+}
+function applyLanguage(lang){
+  if(I18N[lang])currentLanguage=lang;
+  localStorage.setItem('archaeoplan-language',currentLanguage);
+  document.documentElement.lang=currentLanguage;
+  if(languageSelect)languageSelect.value=currentLanguage;
+
+  setText('newProjectButton','newProject');setText('saveProjectButton','saveProject');setText('openProjectButton','openProject');setText('addFileButton','addFile');
+  $('undoButton').title=tr('undo');$('undoButton').setAttribute('aria-label',tr('undo'));
+  $('redoButton').title=tr('redo');$('redoButton').setAttribute('aria-label',tr('redo'));
+  setText('fitModelButton','fitModel');
+
+  setText('viewHeading','view');setText('perspectiveButton','perspective');setText('orthographicButton','orthographic');
+  document.querySelectorAll('[data-view]').forEach(b=>b.textContent=tr(b.dataset.view));
+  setCheckText('gridToggle','showGrid');
+
+  setText('underlayHeading','underlay');setText('loadUnderlayButton','loadUnderlay');setText('removeUnderlayButton','removeUnderlay');
+  setText('underlayMoveButton','underlayMove');setText('underlayRotateButton','underlayRotate');
+  setLabelPrefix('underlayScale','underlayScale');setLabelPrefix('underlayOpacity','underlayOpacity');
+  setCheckText('underlayVisible','underlayVisible');setCheckText('underlayExport','underlayExport');setText('underlayHelp','underlayHelp');
+  setText('modelsHeading','models');setText('selectedModelHeading','selectedModel');
+  setText('translateButton','move');setText('rotateButton','rotate');
+  $('lockButton').textContent=selectedModel?.root.userData.locked?tr('unlock'):tr('lock');
+
+  setText('cropHeading','crop');setText('cropHelp','cropHelp');setText('freehandCropButton','freehand');setText('polygonCropButton','polygon');
+  setText('startCropButton','startCrop');setText('cancelCropButton','cancel');setText('cropInsideButton','keepInside');setText('cropOutsideButton','removeInside');setText('cropNote','cropNote');
+
+  setText('savedViewsHeading','savedViews');setText('saveViewButton','saveView');setText('clearViewsButton','clearViews');
+  setText('measureHeading','measure');setText('measureButton','measureDistance');setText('clearMeasureButton','clearMeasure');
+  if(!measurePoints.length)setText('measureResult','noMeasurement');
+
+  setText('exportHeading','exportFrame');setLabelPrefix('exportRatio','format');setLabelPrefix('exportPreset','resolution');
+  setLabelPrefix('exportWidth','width');setLabelPrefix('exportHeight','height');
+  setOption('exportRatio','screen','screenFormat');setOption('exportRatio','1.41421356237','aLandscape');setOption('exportRatio','0.70710678118','aPortrait');setOption('exportRatio','custom','customFormat');
+  setOption('exportPreset','screen','screen');setOption('exportPreset','3000','px3000');setOption('exportPreset','6000','px6000');setOption('exportPreset','custom','custom');
+  $('toggleExportFrameButton').textContent=exportFrameVisible?tr('hideExportFrame'):tr('showExportFrame');
+  setText('fitToExportFrameButton','fitExport');setText('exportPngButton','savePng');setText('shareImageButton','sharePhotos');
+
+  setText('annotationsHeading','annotations');setCheckText('showScaleBar','showScale');setLabelPrefix('scaleBarLength','length');setLabelPrefix('scaleBarPosition','position');
+  setOption('scaleBarLength','auto','automatic');
+  ['scaleBarPosition','northPosition'].forEach(id=>{
+    setOption(id,'bottom-left','bottomLeft');setOption(id,'bottom-right','bottomRight');setOption(id,'top-left','topLeft');setOption(id,'top-right','topRight');
+  });
+  setCheckText('showNorthArrow','showNorth');setLabelPrefix('northAngle','rotationDeg');setLabelPrefix('northPosition','position');
+  setText('scaleNorthNote','scaleNorthNote');setText('exportNote','exportNote');
+  setText('docsHeading','docs');setText('docsText','docsText');setText('dropStrong','drop');setText('dropText','dropText');
+
+  setText('projectReadyHeading','projectReady');setText('projectReadyText','projectReadyText');
+  setText('chooseProjectLocationButton','chooseLocation');setText('cancelProjectSaveButton','cancelSave');
+
+  rebuildModelList();renderSavedViews();syncTransformFields();
+}
 
 function documentationMaterial(source,obj){
   const texture=source?.map||null;
@@ -102,6 +389,67 @@ function prepareDocumentationMaterials(root){
   });
 }
 
+
+// ---------- Plan / underlay ----------
+function updateUnderlayUi(){
+  const has=!!underlay;
+  for(const id of ['removeUnderlayButton','underlayMoveButton','underlayRotateButton','underlayLockButton','underlayScale','underlayOpacity','underlayVisible','underlayExport']){
+    const el=$(id);if(el)el.disabled=!has;
+  }
+  if(!has){$('underlayLockButton').textContent='🔓';return}
+  $('underlayScale').value=underlay.scale.x.toFixed(3);
+  $('underlayOpacity').value=Math.round((underlay.material.opacity??.55)*100);
+  $('underlayVisible').checked=underlay.visible;
+  $('underlayExport').checked=underlay.userData.includeInExport!==false;
+  $('underlayLockButton').textContent=underlay.userData.locked?'🔒':'🔓';
+  $('underlayLockButton').title=underlay.userData.locked?tr('unlock'):tr('lock');
+}
+function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('FileReader error'));r.readAsDataURL(file)})}
+function makeUnderlayFromTexture(tex,name='underlay'){
+  tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;
+  const img=tex.image,aspect=(img?.width&&img?.height)?img.width/img.height:1.41421356;
+  const h=6,w=h*aspect;
+  const material=new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.55,side:THREE.DoubleSide,depthWrite:false});
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);
+  mesh.name=name;mesh.rotation.x=-Math.PI/2;mesh.position.y=-.005;mesh.renderOrder=-10;
+  mesh.userData.isUnderlay=true;mesh.userData.locked=false;mesh.userData.includeInExport=true;
+  return mesh;
+}
+async function loadUnderlayFile(file){
+  if(!file)return;
+  try{
+    const dataUrl=await readFileAsDataUrl(file);
+    const tex=await new THREE.TextureLoader().loadAsync(dataUrl);
+    if(underlay){if(transform.object===underlay)transform.detach();scene.remove(underlay);underlay.geometry.dispose();underlay.material.map?.dispose();underlay.material.dispose()}
+    underlay=makeUnderlayFromTexture(tex,file.name);underlayImageData=dataUrl;underlaySelected=false;scene.add(underlay);updateUnderlayUi();setStatus(tr('underlayLoaded'));
+  }catch(err){console.error(err);setStatus(tr('underlayFileError',{error:err.message||err}))}
+  finally{underlayInput.value=''}
+}
+function removeUnderlay(){
+  if(!underlay)return;if(transform.object===underlay)transform.detach();scene.remove(underlay);underlay.geometry.dispose();underlay.material.map?.dispose();underlay.material.dispose();
+  underlay=null;underlayImageData=null;underlaySelected=false;updateUnderlayUi();setStatus(tr('underlayRemoved'));
+}
+function selectUnderlayForTransform(mode){
+  if(!underlay){setStatus(tr('underlaySelect'));return}underlaySelected=true;
+  if(underlay.userData.locked){transform.detach();setStatus(tr('underlayLocked'));return}
+  transform.detach();transform.attach(underlay);transform.setMode(mode);
+}
+function toggleUnderlayLock(){
+  if(!underlay){setStatus(tr('underlaySelect'));return}
+  underlay.userData.locked=!underlay.userData.locked;
+  if(underlay.userData.locked&&transform.object===underlay)transform.detach();
+  updateUnderlayUi();setStatus(underlay.userData.locked?tr('underlayLocked'):tr('underlayUnlocked'));
+}
+function setUnderlayScale(){if(!underlay||underlay.userData.locked)return;const s=Math.max(.001,parseFloat($('underlayScale').value)||1);underlay.scale.setScalar(s)}
+function setUnderlayOpacity(){if(!underlay)return;underlay.material.opacity=Math.max(0,Math.min(1,(parseFloat($('underlayOpacity').value)||0)/100));underlay.material.needsUpdate=true}
+function underlayMetadata(){return underlay?{name:underlay.name,imageData:underlayImageData,position:underlay.position.toArray(),quaternion:underlay.quaternion.toArray(),scale:underlay.scale.toArray(),opacity:underlay.material.opacity,visible:underlay.visible,locked:!!underlay.userData.locked,includeInExport:underlay.userData.includeInExport!==false}:null}
+async function restoreUnderlay(meta){
+  if(!meta?.imageData)return;const tex=await new THREE.TextureLoader().loadAsync(meta.imageData);underlay=makeUnderlayFromTexture(tex,meta.name||'underlay');
+  underlay.position.fromArray(meta.position||[0,-.005,0]);underlay.quaternion.fromArray(meta.quaternion||[-Math.SQRT1_2,0,0,Math.SQRT1_2]);underlay.scale.fromArray(meta.scale||[1,1,1]);
+  underlay.material.opacity=meta.opacity??.55;underlay.visible=meta.visible!==false;underlay.userData.locked=!!meta.locked;underlay.userData.includeInExport=meta.includeInExport!==false;
+  underlayImageData=meta.imageData;scene.add(underlay);updateUnderlayUi();
+}
+
 function addModel(root,name,{prepared=false,cropped=false,frame=true}={}){
   root.name=name||`Model ${modelNumber}`;root.userData.locked=false;
   if(!prepared)prepareDocumentationMaterials(root);
@@ -109,22 +457,22 @@ function addModel(root,name,{prepared=false,cropped=false,frame=true}={}){
   const model={id:modelNumber++,name:root.name,root,cropped};
   models.push(model);selectModel(model);rebuildModelList();
   if(frame)frameCurrentView();
-  setStatus(`Indlæst: ${model.name}`);
+  setStatus(tr('loaded',{name:model.name}));
   return model;
 }
 function selectModel(m){
-  selectedModel=m;transform.detach();
+  underlaySelected=false;selectedModel=m;transform.detach();
   if(m&&!m.root.userData.locked&&!cropMode)transform.attach(m.root);
   rebuildModelList();syncTransformFields();updateCropButtons();
 }
 function rebuildModelList(){
   modelList.innerHTML='';
-  if(!models.length){modelList.innerHTML='<p class="muted">Ingen modeller åbnet.</p>';return}
+  if(!models.length){modelList.innerHTML=`<p class="muted">${tr('noModels')}</p>`;return}
   models.forEach(m=>{
     const row=document.createElement('div');row.className='model-row'+(m===selectedModel?' selected':'');
     const vis=document.createElement('input');vis.type='checkbox';vis.checked=m.root.visible;vis.onchange=()=>m.root.visible=vis.checked;
     const name=document.createElement('div');name.className='model-name';name.textContent=(m.cropped?'✂ ':'')+m.name;name.onclick=()=>selectModel(m);
-    const lock=document.createElement('button');lock.className='model-lock'+(m.root.userData.locked?' locked':'');lock.textContent=m.root.userData.locked?'🔒':'🔓';lock.title=m.root.userData.locked?'Lås op':'Lås model';lock.onclick=e=>{e.stopPropagation();setModelLock(m,!m.root.userData.locked)};
+    const lock=document.createElement('button');lock.className='model-lock'+(m.root.userData.locked?' locked':'');lock.textContent=m.root.userData.locked?'🔒':'🔓';lock.title=m.root.userData.locked?tr('unlock'):tr('lock');lock.onclick=e=>{e.stopPropagation();setModelLock(m,!m.root.userData.locked)};
     const del=document.createElement('button');del.className='model-delete';del.textContent='×';del.onclick=()=>{if(selectedModel===m)selectModel(null);scene.remove(m.root);models.splice(models.indexOf(m),1);rebuildModelList()};
     row.append(vis,name,lock,del);modelList.append(row);
   });
@@ -134,20 +482,20 @@ function setModelLock(m,locked){
   if(!m)return;
   m.root.userData.locked=!!locked;
   if(selectedModel===m){transform.detach();if(!locked&&!cropMode&&!measureMode)transform.attach(m.root)}
-  rebuildModelList();syncTransformFields();updateCropButtons();setStatus(locked?'Modellen er låst.':'Modellen er låst op.');
+  rebuildModelList();syncTransformFields();updateCropButtons();setStatus(locked?tr('modelLocked'):tr('modelUnlocked'));
 }
 function selectedEditable(){
-  if(!selectedModel){setStatus('Vælg først en model.');return false}
-  if(selectedModel.root.userData.locked){setStatus('Modellen er låst.');return false}
+  if(!selectedModel){setStatus(tr('selectModel'));return false}
+  if(selectedModel.root.userData.locked){setStatus(tr('modelLocked'));return false}
   return true;
 }
 function syncTransformFields(){
   ['posX','posY','posZ','rotX','rotY','rotZ'].forEach(id=>$(id).disabled=!selectedModel||selectedModel.root.userData.locked);
-  if(!selectedModel){$('lockButton').textContent='Lås';return}
+  if(!selectedModel){$('lockButton').textContent=tr('lock');return}
   const p=selectedModel.root.position,r=selectedModel.root.rotation;
   $('posX').value=p.x.toFixed(3);$('posY').value=p.y.toFixed(3);$('posZ').value=p.z.toFixed(3);
   $('rotX').value=THREE.MathUtils.radToDeg(r.x).toFixed(2);$('rotY').value=THREE.MathUtils.radToDeg(r.y).toFixed(2);$('rotZ').value=THREE.MathUtils.radToDeg(r.z).toFixed(2);
-  $('lockButton').textContent=selectedModel.root.userData.locked?'Lås op':'Lås';
+  $('lockButton').textContent=selectedModel.root.userData.locked?tr('unlock'):tr('lock');
 }
 function applyTransformFields(){
   if(!selectedEditable())return;const n=id=>parseFloat($(id).value)||0;
@@ -291,9 +639,9 @@ function frameCurrentView(){
 }
 function fitSelectedModel(){
   const box=framingBox();
-  if(!box){setStatus('Ingen model at tilpasse.');return}
+  if(!box){setStatus(tr('noModelFit'));return}
   fitCameraToBox(box);
-  setStatus('Valgt model tilpasset og centreret.');
+  setStatus(tr('modelFit'));
 }
 
 function switchCamera(useOrtho){
@@ -312,7 +660,7 @@ function setStandardView(name){
   if(name==='top')camera.up.set(0,0,-1);
   if(name==='bottom')camera.up.set(0,0,1);
   fitCameraToBox(box,dir);
-  setStatus(`${name}: centreret`);
+  setStatus(tr('centered',{name}));
 }
 
 function basename(url){return decodeURIComponent(url.split(/[\\/]/).pop().split(/[?#]/)[0]).toLowerCase()}
@@ -328,7 +676,7 @@ async function loadFiles(fileList){
   const byName=new Map(files.map(f=>[f.name.toLowerCase(),f]));
   const urls=makeObjectUrlMap(files);
   const mains=files.filter(f=>/\.(glb|gltf|obj|ply)$/i.test(f.name));
-  if(!mains.length){setStatus('Vælg en model-fil.');return}
+  if(!mains.length){setStatus(tr('selectModelFile'));return}
   for(const f of mains){
     try{
       const ext=f.name.split('.').pop().toLowerCase(),manager=managerFor(urls);
@@ -352,16 +700,16 @@ async function loadFiles(fileList){
         else obj=new THREE.Points(g,new THREE.PointsMaterial({size:.01,vertexColors:Boolean(g.attributes.color)}));
         addModel(obj,f.name,{prepared:true});
       }
-    }catch(err){console.error(err);setStatus(`Fejl ved ${f.name}: ${err.message||err}`)}
+    }catch(err){console.error(err);setStatus(tr('fileError',{name:f.name,error:err.message||err}))}
   }
   fileInput.value='';
 }
 
 function newProject(){
-  if(models.length&&!confirm('Opret nyt projekt og fjern modellerne fra arbejdsfladen?'))return;
-  cancelCrop();clearMeasurement();transform.detach();models.forEach(m=>scene.remove(m.root));models.length=0;selectedModel=null;modelNumber=1;releaseAllObjectUrls();
-  savedViews=[];renderSavedViews();
-  undoStack.length=0;redoStack.length=0;updateHistoryButtons();rebuildModelList();syncTransformFields();resetViewToOrigin();setStatus('Nyt tomt projekt – centrum (0,0,0).');
+  if((models.length||underlay)&&!confirm(tr('newProjectConfirm')))return;
+  cancelCrop();clearMeasurement();transform.detach();models.forEach(m=>scene.remove(m.root));models.length=0;if(underlay){scene.remove(underlay);underlay.geometry.dispose();underlay.material.map?.dispose();underlay.material.dispose();underlay=null;underlayImageData=null;underlaySelected=false}selectedModel=null;modelNumber=1;releaseAllObjectUrls();
+  savedViews=[];renderSavedViews();updateUnderlayUi();
+  undoStack.length=0;redoStack.length=0;updateHistoryButtons();rebuildModelList();syncTransformFields();resetViewToOrigin();setStatus(tr('newEmpty'));
 }
 
 function updateCropButtons(){
@@ -376,7 +724,7 @@ function setCropTool(tool){
   $('polygonCropButton').classList.toggle('active',tool==='polygon');
   $('freehandCropButton').setAttribute('aria-pressed',tool==='freehand');
   $('polygonCropButton').setAttribute('aria-pressed',tool==='polygon');
-  setStatus(`${tool==='freehand'?'Frihånd':'Polygon'} valgt.`);
+  setStatus(tr('toolSelected',{tool:tool==='freehand'?tr('freehand'):tr('polygon')}));
   updateCropButtons();
 }
 function startCrop(){
@@ -387,7 +735,7 @@ function startCrop(){
   cropInputLayer.classList.add('active');cropOverlay.classList.add('active');cropHint.classList.add('active');
   $('startCropButton').classList.add('active');
   cropHint.textContent=cropTool==='freehand'?'Frihånd aktiv: tegn i flere strøg. Løft pennen og fortsæt et nyt sted – mellemrummet forbindes med en lige linje.':'Polygon aktiv: tryk punkter langs kanten.';
-  updateCropButtons();redrawCrop();setStatus('Beskæring aktiv.');
+  updateCropButtons();redrawCrop();setStatus(tr('cropActive'));
 }
 function cancelCrop(){
   cropMode=false;cropPoints=[];cropDrawing=false;cropPointerId=null;
@@ -425,7 +773,7 @@ function move(e){
 function up(e){
   if(!cropMode||cropTool!=='freehand'||!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
   cropDrawing=false;cropInputLayer.releasePointerCapture?.(e.pointerId);cropPointerId=null;redrawCrop();updateCropButtons();
-  if(cropPoints.length>=3)setStatus('Strøg gemt. Fortsæt et andet sted, eller vælg Behold/Fjern.');
+  if(cropPoints.length>=3)setStatus(tr('strokeSaved'));
 }
 function inPolygon(p,poly){
   let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){
@@ -474,7 +822,7 @@ function applyCrop(keepInside){
       selectModel(m);rebuildModelList();
     }
   });
-  cancelCrop();selectModel(m);setStatus('Beskåret kopi oprettet. Originalen er bevaret og skjult.');
+  cancelCrop();selectModel(m);setStatus(tr('cropCreated'));
 }
 
 async function exportPng(){
@@ -528,7 +876,7 @@ function snapshotView(){return {
   width:$('exportWidth').value,
   height:$('exportHeight').value
 };}
-function saveView(){const s=snapshotView(),suggested=`Visning ${savedViews.length+1}`;const n=prompt('Navn på visningen:',suggested);if(n===null)return;s.name=n.trim()||suggested;savedViews.push(s);renderSavedViews();setStatus(`Visning "${s.name}" gemt.`)}
+function saveView(){const s=snapshotView(),suggested=`Visning ${savedViews.length+1}`;const n=prompt('Navn på visningen:',suggested);if(n===null)return;s.name=n.trim()||suggested;savedViews.push(s);renderSavedViews();setStatus(tr('viewSaved',{name:s.name}))}
 function applyViewState(s){
   if(!s)return;
   if(camera.isOrthographicCamera!==s.ortho)switchCamera(s.ortho);
@@ -554,10 +902,10 @@ function applyViewState(s){
   updateExportFrame();
   updateExportAnnotations();
 }
-function restoreView(i){const s=savedViews[i];if(!s)return;applyViewState(s);setStatus(`Visning "${s.name}" hentet.`)}
+function restoreView(i){const s=savedViews[i];if(!s)return;applyViewState(s);setStatus(tr('viewRestored',{name:s.name}))}
 function deleteView(i){savedViews.splice(i,1);renderSavedViews()}
-function clearViews(){if(!savedViews.length)return;if(confirm('Ryd alle gemte visninger?')){savedViews=[];renderSavedViews();setStatus('Gemte visninger ryddet.')}}
-function renderSavedViews(){const list=$('savedViewsList');if(!list)return;list.innerHTML='';if(!savedViews.length){list.innerHTML='<p class="muted small">Ingen gemte visninger.</p>';return}savedViews.forEach((v,i)=>{const row=document.createElement('div');row.className='saved-view-row';const n=document.createElement('div');n.className='saved-view-name';n.textContent=v.name;const go=document.createElement('button');go.textContent='Hent';go.onclick=()=>restoreView(i);const del=document.createElement('button');del.textContent='×';del.onclick=()=>deleteView(i);row.append(n,go,del);list.append(row)})}
+function clearViews(){if(!savedViews.length)return;if(confirm(tr('clearViewsConfirm'))){savedViews=[];renderSavedViews();setStatus(tr('viewsCleared'))}}
+function renderSavedViews(){const list=$('savedViewsList');if(!list)return;list.innerHTML='';if(!savedViews.length){list.innerHTML=`<p class="muted small">${tr('noSavedViews')}</p>`;return}savedViews.forEach((v,i)=>{const row=document.createElement('div');row.className='saved-view-row';const n=document.createElement('div');n.className='saved-view-name';n.textContent=v.name;const go=document.createElement('button');go.textContent='Hent';go.onclick=()=>restoreView(i);const del=document.createElement('button');del.textContent='×';del.onclick=()=>deleteView(i);row.append(n,go,del);list.append(row)})}
 
 // ---------- Measurement ----------
 const measureRaycaster=new THREE.Raycaster();
@@ -590,10 +938,10 @@ function toggleMeasure(){
     cancelCrop();
     clearMeasurement();
     transform.detach();
-    setStatus('Måling aktiv: tryk to punkter på modellen.');
+    setStatus(tr('measureActive'));
   }else{
     if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root);
-    setStatus('Måling afsluttet.');
+    setStatus(tr('measureEnded'));
   }
 }
 function addMeasurePoint(world){
@@ -626,7 +974,7 @@ function addMeasurePoint(world){
     measureMode=false;
     $('measureButton').classList.remove('active');
     if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root);
-    setStatus(`Måling: ${txt}`);
+    setStatus(tr('measureValue',{value:txt}));
   }
 }
 function updateMeasureLabel(){
@@ -698,11 +1046,11 @@ function updateExportFrame(){
 function toggleExportFrame(){
   exportFrameVisible=!exportFrameVisible;
   exportFrame.classList.toggle('active',exportFrameVisible);
-  $('toggleExportFrameButton').textContent=exportFrameVisible?'Skjul eksport-ramme':'Vis eksport-ramme';
+  $('toggleExportFrameButton').textContent=exportFrameVisible?tr('hideExportFrame'):tr('showExportFrame');
   if(exportFrameVisible){syncExportDimensions();updateExportFrame()}
 }
 function fitToExportFrame(){
-  if(!selectedModel){setStatus('Vælg først en model.');return}
+  if(!selectedModel){setStatus(tr('selectModel'));return}
   if(!exportFrameVisible){exportFrameVisible=true;exportFrame.classList.add('active')}
   updateExportFrame();
   // Reuse the stable model framing, then zoom out slightly for breathing room.
@@ -714,7 +1062,7 @@ function fitToExportFrame(){
     camera.zoom*=.90;
   }
   camera.updateProjectionMatrix();orbit.update();
-  setStatus('Model tilpasset eksport-rammen.');
+  setStatus(tr('exportFit'));
 }
 function exportFrameRect(){
   const vr=viewport.getBoundingClientRect();
@@ -761,6 +1109,9 @@ async function drawAnnotationsOnBlob(blob,outW,outH){
 }
 
 async function renderExportBlob(){
+  const __underlayWasVisible=underlay?underlay.visible:null;
+  if(underlay&&underlay.userData.includeInExport===false)underlay.visible=false;
+
   const outW=Math.max(200,Math.min(12000,parseInt($('exportWidth').value)||3000));
   const outH=Math.max(200,Math.min(12000,parseInt($('exportHeight').value)||2000));
   const frame=exportFrameRect();
@@ -796,6 +1147,7 @@ async function renderExportBlob(){
   perspectiveCamera.aspect=oldAspect;
   Object.assign(orthographicCamera,{left:oldOrtho.l,right:oldOrtho.r,top:oldOrtho.t,bottom:oldOrtho.b});
   camera.updateProjectionMatrix();
+  if(underlay&&__underlayWasVisible!==null)underlay.visible=__underlayWasVisible;
   return await drawAnnotationsOnBlob(blob,outW,outH);
 }
 async function savePng(){
@@ -806,7 +1158,7 @@ async function savePng(){
   a.href=url;a.download=`ArchaeoPlan-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),2000);
-  setStatus('PNG eksporteret.');
+  setStatus(tr('pngExported'));
 }
 async function shareImage(){
   const blob=await renderExportBlob();
@@ -815,7 +1167,7 @@ async function shareImage(){
   if(navigator.canShare?.({files:[file]}) && navigator.share){
     try{
       await navigator.share({files:[file],title:'ArchaeoPlan'});
-      setStatus('Billede sendt til iOS deleark.');
+      setStatus(tr('imageShare'));
       return;
     }catch(err){
       if(err?.name==='AbortError')return;
@@ -825,7 +1177,7 @@ async function shareImage(){
   const a=document.createElement('a');
   a.href=url;a.download='ArchaeoPlan.png';a.click();
   setTimeout(()=>URL.revokeObjectURL(url),2000);
-  setStatus('Deling understøttes ikke her – PNG blev gemt i stedet.');
+  setStatus(tr('imageFallback'));
 }
 
 
@@ -844,6 +1196,7 @@ function cloneSerializableView(s){
 }
 function currentProjectSettings(){
   return {
+    language:currentLanguage,
     gridVisible:grid.visible,
     selectedIndex:selectedModel?models.indexOf(selectedModel):-1,
     currentView:cloneSerializableView(snapshotView()),
@@ -861,7 +1214,8 @@ function currentProjectSettings(){
       northAngle:$('northAngle').value,
       northPosition:$('northPosition').value
     },
-    measurement:measurePoints.map(p=>p.toArray())
+    measurement:measurePoints.map(p=>p.toArray()),
+    underlay:underlayMetadata()
   };
 }
 function modelMetadata(m,index){
@@ -894,18 +1248,18 @@ function exportRootAsGlb(root){
   });
 }
 async function saveProject(){
-  if(!models.length){
-    setStatus('Der er ingen modeller at gemme i projektet.');
+  if(!models.length&&!underlay){
+    setStatus(tr('noModelsToSave'));
     return;
   }
   const defaultName=`ArchaeoPlan-${new Date().toISOString().slice(0,10)}`;
-  const requested=window.prompt('Navn på projektfilen:',defaultName);
+  const requested=window.prompt(tr('projectNamePrompt'),defaultName);
   if(requested===null)return;
   const filename=safeProjectName(requested)+'.archaeoplan';
 
   try{
     transform.detach();
-    setStatus('Forbereder projekt…');
+    setStatus(tr('preparingProject'));
     const manifest={
       format:PROJECT_FORMAT,
       formatVersion:PROJECT_FORMAT_VERSION,
@@ -918,7 +1272,7 @@ async function saveProject(){
 
     for(let i=0;i<models.length;i++){
       const m=models[i];
-      setStatus(`Gemmer projekt: model ${i+1} af ${models.length}…`);
+      setStatus(tr('savingModel',{i:i+1,n:models.length}));
       const glb=await exportRootAsGlb(m.root);
       const meta=modelMetadata(m,i);
       manifest.models.push(meta);
@@ -927,26 +1281,66 @@ async function saveProject(){
     }
 
     archive['project.json']=strToU8(JSON.stringify(manifest));
-    setStatus('Pakker projektfil…');
+    setStatus(tr('packingProject'));
     const packed=zipSync(archive,{level:0});
     const blob=new Blob([packed],{type:'application/zip'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),5000);
-
+    preparedProject={blob,filename};
+    if(projectSaveDialog?.showModal)projectSaveDialog.showModal();
+    else await savePreparedProject();
     if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root);
-    setStatus(`Projekt gemt: ${filename}`);
+    setStatus(tr('projectPrepared'));
   }catch(err){
     console.error(err);
     if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root);
-    setStatus(`Kunne ikke gemme projekt: ${err.message||err}`);
+    setStatus(tr('saveError',{error:err.message||err}));
   }
 }
+
+async function savePreparedProject(){
+  if(!preparedProject)return;
+  const {blob,filename}=preparedProject;
+  try{
+    // Chromium/desktop: real Save As dialog when supported.
+    if(window.showSaveFilePicker){
+      const handle=await window.showSaveFilePicker({
+        suggestedName:filename,
+        types:[{description:'ArchaeoPlan project',accept:{'application/zip':['.archaeoplan']}}]
+      });
+      const writable=await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      projectSaveDialog?.close();
+      preparedProject=null;
+      setStatus(tr('projectSaved',{name:filename}));
+      return;
+    }
+
+    // iPad/iPhone Safari: native share sheet; choose "Save to Files" and destination there.
+    const file=new File([blob],filename,{type:'application/zip'});
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share({files:[file],title:'ArchaeoPlan'});
+      projectSaveDialog?.close();
+      preparedProject=null;
+      setStatus(tr('savedToFiles'));
+      return;
+    }
+
+    // Last-resort browser download.
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=filename;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    projectSaveDialog?.close();
+    preparedProject=null;
+    setStatus(tr('downloaded'));
+  }catch(err){
+    if(err?.name==='AbortError')return;
+    console.error(err);
+    setStatus(tr('saveError',{error:err.message||err}));
+  }
+}
+
 function parseGlbBytes(bytes){
   return new Promise((resolve,reject)=>{
     const loader=new GLTFLoader();
@@ -960,6 +1354,7 @@ function clearProjectWorkspace(){
   transform.detach();
   models.forEach(m=>scene.remove(m.root));
   models.length=0;
+  if(underlay){scene.remove(underlay);underlay.geometry.dispose();underlay.material.map?.dispose();underlay.material.dispose();underlay=null;underlayImageData=null;underlaySelected=false}
   selectedModel=null;
   modelNumber=1;
   releaseAllObjectUrls();
@@ -968,8 +1363,9 @@ function clearProjectWorkspace(){
   redoStack.length=0;
   updateHistoryButtons();
 }
-function restoreProjectSettings(settings){
+async function restoreProjectSettings(settings){
   if(!settings)return;
+  if(settings.language&&I18N[settings.language])applyLanguage(settings.language);
   grid.visible=settings.gridVisible!==false;
   $('gridToggle').checked=grid.visible;
 
@@ -990,10 +1386,12 @@ function restoreProjectSettings(settings){
 
   exportFrameVisible=!!ex.frameVisible;
   exportFrame.classList.toggle('active',exportFrameVisible);
-  $('toggleExportFrameButton').textContent=exportFrameVisible?'Skjul eksport-ramme':'Vis eksport-ramme';
+  $('toggleExportFrameButton').textContent=exportFrameVisible?tr('hideExportFrame'):tr('showExportFrame');
   updateExportFrame();
 
   if(settings.currentView)applyViewState(settings.currentView);
+
+  if(settings.underlay)await restoreUnderlay(settings.underlay);else updateUnderlayUi();
 
   const selectedIndex=Number.isInteger(settings.selectedIndex)?settings.selectedIndex:-1;
   selectModel(selectedIndex>=0&&selectedIndex<models.length?models[selectedIndex]:(models[0]||null));
@@ -1009,7 +1407,7 @@ function restoreProjectSettings(settings){
 async function openProjectFile(file){
   if(!file)return;
   try{
-    setStatus('Åbner projektfil…');
+    setStatus(tr('openingProject'));
     const bytes=new Uint8Array(await file.arrayBuffer());
     const archive=unzipSync(bytes);
     if(!archive['project.json'])throw new Error('project.json mangler i projektfilen.');
@@ -1017,9 +1415,9 @@ async function openProjectFile(file){
     if(manifest.format!==PROJECT_FORMAT)throw new Error('Filen er ikke et ArchaeoPlan-projekt.');
     if(manifest.formatVersion>PROJECT_FORMAT_VERSION)throw new Error('Projektfilen er lavet i en nyere ArchaeoPlan-version.');
 
-    if(models.length&&!window.confirm('Åbn projektet og erstat det nuværende arbejdsområde?')){
+    if(models.length&&!window.confirm(tr('replaceProjectConfirm'))){
       projectInput.value='';
-      setStatus('Åbning annulleret.');
+      setStatus(tr('openingCancelled'));
       return;
     }
 
@@ -1029,7 +1427,7 @@ async function openProjectFile(file){
       const meta=manifest.models[i];
       const modelBytes=archive[meta.file];
       if(!modelBytes)throw new Error(`Modeldata mangler: ${meta.file}`);
-      setStatus(`Åbner projekt: model ${i+1} af ${manifest.models.length}…`);
+      setStatus(tr('openingModel',{i:i+1,n:manifest.models.length}));
       const root=await parseGlbBytes(modelBytes);
       prepared.push({root,meta});
       await new Promise(r=>setTimeout(r,0));
@@ -1049,16 +1447,16 @@ async function openProjectFile(file){
       m.name=meta.name||m.name;
     }
 
-    restoreProjectSettings(manifest.settings||{});
+    await restoreProjectSettings(manifest.settings||{});
     rebuildModelList();
     syncTransformFields();
     updateCropButtons();
     projectInput.value='';
-    setStatus(`Projekt åbnet: ${file.name}`);
+    setStatus(tr('projectOpened',{name:file.name}));
   }catch(err){
     console.error(err);
     projectInput.value='';
-    setStatus(`Kunne ikke åbne projekt: ${err.message||err}`);
+    setStatus(tr('openError',{error:err.message||err}));
   }
 }
 
@@ -1098,16 +1496,27 @@ function pushHistory(action){
 }
 function undo(){
   const a=undoStack.pop();if(!a)return;
-  a.undo();redoStack.push(a);updateHistoryButtons();setStatus(`Fortrudt: ${a.label}`);
+  a.undo();redoStack.push(a);updateHistoryButtons();setStatus(tr('undone',{label:a.label}));
 }
 function redo(){
   const a=redoStack.pop();if(!a)return;
-  a.redo();undoStack.push(a);updateHistoryButtons();setStatus(`Gentaget: ${a.label}`);
+  a.redo();undoStack.push(a);updateHistoryButtons();setStatus(tr('redone',{label:a.label}));
 }
 
 
+$('loadUnderlayButton').onclick=()=>underlayInput.click();
+underlayInput.onchange=e=>loadUnderlayFile(e.target.files?.[0]);
+$('removeUnderlayButton').onclick=removeUnderlay;
+$('underlayMoveButton').onclick=()=>selectUnderlayForTransform('translate');
+$('underlayRotateButton').onclick=()=>selectUnderlayForTransform('rotate');
+$('underlayLockButton').onclick=toggleUnderlayLock;
+$('underlayScale').onchange=setUnderlayScale;
+$('underlayOpacity').oninput=setUnderlayOpacity;
+$('underlayVisible').onchange=e=>{if(underlay)underlay.visible=e.target.checked};
+$('underlayExport').onchange=e=>{if(underlay)underlay.userData.includeInExport=e.target.checked};
+
 $('saveViewButton').onclick=saveView;$('clearViewsButton').onclick=clearViews;
-['showScaleBar','scaleBarLength','scaleBarPosition','showNorthArrow','northPosition'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='showScaleBar'&&$('showScaleBar').checked&&!camera.isOrthographicCamera)setStatus('Målestok er kun metrisk korrekt i ortografisk visning.');updateExportAnnotations()}));$('northAngle').addEventListener('input',updateExportAnnotations);
+['showScaleBar','scaleBarLength','scaleBarPosition','showNorthArrow','northPosition'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='showScaleBar'&&$('showScaleBar').checked&&!camera.isOrthographicCamera)setStatus(tr('orthoScaleOnly'));updateExportAnnotations()}));$('northAngle').addEventListener('input',updateExportAnnotations);
 $('measureButton').onclick=toggleMeasure;
 $('clearMeasureButton').onclick=clearMeasurement;
 
@@ -1123,6 +1532,9 @@ $('exportHeight').onchange=()=>syncExportDimensions('height');
 
 $('newProjectButton').onclick=newProject;
 $('saveProjectButton').onclick=saveProject;
+languageSelect.onchange=e=>applyLanguage(e.target.value);
+$('chooseProjectLocationButton').onclick=savePreparedProject;
+$('cancelProjectSaveButton').onclick=()=>{projectSaveDialog.close();preparedProject=null;setStatus(tr('openingCancelled'));};
 $('openProjectButton').onclick=()=>projectInput.click();
 projectInput.onchange=e=>openProjectFile(e.target.files?.[0]);
 $('undoButton').onclick=undo;$('redoButton').onclick=redo;$('fitModelButton').onclick=fitSelectedModel;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);
@@ -1144,5 +1556,7 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 ['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend'].forEach(n=>cropInputLayer.addEventListener(n,e=>{if(cropMode){e.preventDefault();e.stopPropagation()}},{passive:false,capture:true}));
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
-window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();setStatus(`ArchaeoPlan v${VERSION} klar.`);
+window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();
+applyLanguage(currentLanguage);
+setStatus(tr('ready',{version:VERSION}));
 (function animate(){requestAnimationFrame(animate);orbit.update();updateMeasureLabel();renderer.render(scene,camera)})();

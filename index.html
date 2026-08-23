@@ -4,17 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.15</title>
-  <link rel="stylesheet" href="style.css?v=0.2.15">
+  <title>ArchaeoPlan v0.2.17</title>
+  <link rel="stylesheet" href="style.css?v=0.2.17">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.15</span>
+      <span class="version">v0.2.17</span>
     </div>
     <div class="header-actions">
+
+      <select id="languageSelect" class="language-select" aria-label="Sprog">
+        <option value="da">DA</option>
+        <option value="de">DE</option>
+        <option value="en">EN</option>
+        <option value="fr">FR</option>
+      </select>
       <button id="newProjectButton">Nyt projekt</button>
       <button id="saveProjectButton">Gem projekt</button>
       <button id="openProjectButton">Åbn projekt</button>
@@ -30,7 +37,7 @@
 
   <aside class="sidebar">
     <section>
-      <h2>Visning</h2>
+      <h2 id="viewHeading">Visning</h2>
       <div class="button-grid two">
         <button id="perspectiveButton" class="active">Perspektiv</button>
         <button id="orthographicButton">Ortografisk</button>
@@ -49,15 +56,37 @@
       </label>
     </section>
 
+
     <section>
-      <h2>Modeller</h2>
+      <h2 id="underlayHeading">Grundplan / underlag</h2>
+      <div class="button-grid two">
+        <button id="loadUnderlayButton">Indlæs grundplan</button>
+        <button id="removeUnderlayButton">Fjern grundplan</button>
+      </div>
+      <input id="underlayInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+      <div class="button-grid three">
+        <button id="underlayMoveButton">Flyt</button>
+        <button id="underlayRotateButton">Drej</button>
+        <button id="underlayLockButton" title="Lås">🔓</button>
+      </div>
+      <div class="field-grid two">
+        <label>Skala<input id="underlayScale" type="number" value="1" step="0.01" min="0.001"></label>
+        <label>Gennemsigtighed<input id="underlayOpacity" type="range" value="55" min="0" max="100" step="1"></label>
+      </div>
+      <label class="check-row"><input id="underlayVisible" type="checkbox" checked> Vis grundplan</label>
+      <label class="check-row"><input id="underlayExport" type="checkbox" checked> Medtag i eksport</label>
+      <p id="underlayHelp" class="muted small">Grundplanen ligger som et særskilt, plant underlag under 3D-modellerne. Tilpas den og lås den derefter.</p>
+    </section>
+
+    <section>
+      <h2 id="modelsHeading">Modeller</h2>
       <div id="modelList" class="model-list">
         <p class="muted">Ingen modeller åbnet.</p>
       </div>
     </section>
 
     <section>
-      <h2>Valgt model</h2>
+      <h2 id="selectedModelHeading">Valgt model</h2>
       <div class="field-grid three">
         <label>X<input id="posX" type="number" step="0.01"></label>
         <label>Y<input id="posY" type="number" step="0.01"></label>
@@ -76,8 +105,8 @@
     </section>
 
     <section>
-      <h2>Beskæring</h2>
-      <p class="muted small">Vælg en model. Vælg frihånd eller polygon. Start beskæring og tegn direkte på modellen.</p>
+      <h2 id="cropHeading">Beskæring</h2>
+      <p id="cropHelp" class="muted small">Vælg en model. Vælg frihånd eller polygon. Start beskæring og tegn direkte på modellen.</p>
       <div class="button-grid two">
         <button id="freehandCropButton" class="active" aria-pressed="true">Frihånd</button>
         <button id="polygonCropButton" aria-pressed="false">Polygon</button>
@@ -90,12 +119,12 @@
         <button id="cropInsideButton" disabled>Behold indenfor</button>
         <button id="cropOutsideButton" disabled>Fjern indenfor</button>
       </div>
-      <p class="muted small">Originalen bevares. Beskæringen laves som en ny kopi.</p>
+      <p id="cropNote" class="muted small">Originalen bevares. Beskæringen laves som en ny kopi.</p>
     </section>
 
 
     <section>
-      <h2>Gemte visninger</h2>
+      <h2 id="savedViewsHeading">Gemte visninger</h2>
       <div class="button-grid two">
         <button id="saveViewButton">Gem visning</button>
         <button id="clearViewsButton">Ryd visninger</button>
@@ -104,7 +133,7 @@
     </section>
 
     <section>
-      <h2>Måling</h2>
+      <h2 id="measureHeading">Måling</h2>
       <div class="button-grid two">
         <button id="measureButton">Mål afstand</button>
         <button id="clearMeasureButton">Ryd måling</button>
@@ -113,7 +142,7 @@
     </section>
 
     <section>
-      <h2>Eksport-ramme</h2>
+      <h2 id="exportHeading">Eksport-ramme</h2>
       <div class="field-grid two">
         <label>Format
           <select id="exportRatio">
@@ -149,7 +178,7 @@
       </div>
 
       <hr class="section-rule">
-      <h3>Eksportmarkeringer</h3>
+      <h3 id="annotationsHeading">Eksportmarkeringer</h3>
       <label class="check-row"><input id="showScaleBar" type="checkbox"> Vis målestok</label>
       <div class="field-grid two">
         <label>Længde
@@ -168,14 +197,14 @@
           <select id="northPosition"><option value="top-right">Øverst højre</option><option value="top-left">Øverst venstre</option><option value="bottom-right">Nederst højre</option><option value="bottom-left">Nederst venstre</option></select>
         </label>
       </div>
-      <p class="muted small">Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.</p>
-      <p class="muted small">Det synlige udsnit inden for rammen eksporteres. Opløsningen ændrer kun detaljegraden, ikke udsnittet.</p>
+      <p id="scaleNorthNote" class="muted small">Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.</p>
+      <p id="exportNote" class="muted small">Det synlige udsnit inden for rammen eksporteres. Opløsningen ændrer kun detaljegraden, ikke udsnittet.</p>
     </section>
 
 
     <section class="about">
-      <h2>Dokumentationsvisning</h2>
-      <p>GLB- og OBJ-teksturer bevares. ArchaeoPlan ændrer ikke de originale teksturfiler.</p>
+      <h2 id="docsHeading">Dokumentationsvisning</h2>
+      <p id="docsText">GLB- og OBJ-teksturer bevares. ArchaeoPlan ændrer ikke de originale teksturfiler.</p>
     </section>
   </aside>
 
@@ -190,10 +219,10 @@
     <div id="exportFrame" aria-hidden="true"></div>
     <div id="exportAnnotations" aria-hidden="true"><div id="scaleBarOverlay"></div><div id="northArrowOverlay"><div class="northArrowGlyph">↑</div><div class="northArrowN">N</div></div></div>
     <div id="dropZone">
-      <strong>Slip filer her</strong>
-      <span>GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
+      <strong id="dropStrong">Slip filer her</strong>
+      <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.15 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.17 klar.</div>
   </main>
 </div>
 
@@ -205,6 +234,18 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.15"></script>
+<script type="module" src="app.js?v=0.2.17"></script>
+
+<dialog id="projectSaveDialog" class="project-save-dialog">
+  <div class="dialog-card">
+    <h2 id="projectReadyHeading">Projektet er klar</h2>
+    <p id="projectReadyText">Vælg hvor projektfilen skal gemmes.</p>
+    <div class="button-grid two">
+      <button id="chooseProjectLocationButton" class="primary">Vælg placering…</button>
+      <button id="cancelProjectSaveButton">Annullér</button>
+    </div>
+  </div>
+</dialog>
+
 </body>
 </html>
