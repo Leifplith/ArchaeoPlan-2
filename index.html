@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.6</title>
+  <title>ArchaeoPlan v0.2.7</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,12 +12,15 @@
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.6</span>
+      <span class="version">v0.2.7</span>
     </div>
     <div class="header-actions">
       <button id="newProjectButton">Nyt projekt</button>
       <button id="addFileButton" class="primary">Tilføj fil</button>
       <input id="fileInput" type="file" multiple hidden>
+      <button id="undoButton" title="Fortryd" aria-label="Fortryd">↶</button>
+      <button id="redoButton" title="Annuller fortryd" aria-label="Annuller fortryd">↷</button>
+      <button id="fitModelButton" title="Tilpas den valgte model til vinduet">Tilpas model</button>
       <button id="exportButton">Gem PNG</button>
     </div>
   </header>
@@ -113,7 +116,7 @@
       <strong>Slip filer her</strong>
       <span>GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.6 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.7 klar.</div>
   </main>
 </div>
 

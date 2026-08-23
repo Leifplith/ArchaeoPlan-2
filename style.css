@@ -46,3 +46,12 @@ input[type=number]{margin-top:3px;width:100%;border:1px solid #a7afb7;border-rad
   .sidebar{border-right:0;border-top:1px solid var(--line)}
   .topbar h1{font-size:17px}.header-actions button{padding:7px 8px;font-size:12px}
 }
+
+/* v0.2.7 */
+#undoButton, #redoButton {
+  min-width: 38px;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px 9px;
+}
+#undoButton:disabled, #redoButton:disabled { opacity: .4; }

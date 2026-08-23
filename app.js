@@ -6,7 +6,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 
-const VERSION='0.2.6';
+const VERSION='0.2.7';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -36,7 +36,22 @@ let orbit=createOrbit(camera);
 
 const transform=new TransformControls(camera,renderer.domElement);
 transform.setMode('translate');
-transform.addEventListener('dragging-changed',e=>orbit.enabled=!e.value);
+transform.addEventListener('dragging-changed',e=>{
+  orbit.enabled=!e.value;
+  if(e.value){
+    transformStartState=cloneTransformState(selectedModel);
+  }else if(transformStartState&&selectedModel===transformStartState.model){
+    const before=transformStartState,after=cloneTransformState(selectedModel);
+    if(!sameTransform(before,after)){
+      pushHistory({
+        label:transform.getMode()==='rotate'?'drej model':'flyt model',
+        undo:()=>applyTransformState(before),
+        redo:()=>applyTransformState(after)
+      });
+    }
+    transformStartState=null;
+  }
+});
 transform.addEventListener('objectChange',syncTransformFields);
 scene.add(transform);
 
@@ -114,12 +129,27 @@ function applyTransformFields(){
   selectedModel.root.position.set(n('posX'),n('posY'),n('posZ'));
   selectedModel.root.rotation.set(THREE.MathUtils.degToRad(n('rotX')),THREE.MathUtils.degToRad(n('rotY')),THREE.MathUtils.degToRad(n('rotZ')));
 }
-['posX','posY','posZ','rotX','rotY','rotZ'].forEach(id=>$(id).addEventListener('change',applyTransformFields));
+['posX','posY','posZ','rotX','rotY','rotZ'].forEach(id=>$(id).addEventListener('change',()=>{
+  if(!selectedModel)return;
+  const before=cloneTransformState(selectedModel);
+  applyTransformFields();
+  const after=cloneTransformState(selectedModel);
+  if(!sameTransform(before,after))pushHistory({
+    label:'ændr model',
+    undo:()=>applyTransformState(before),
+    redo:()=>applyTransformState(after)
+  });
+}));
+
 
 function framingBox(){
   const candidates=selectedModel&&selectedModel.root.visible?[selectedModel]:models.filter(m=>m.root.visible);
   const box=new THREE.Box3();let ok=false;
-  for(const m of candidates){const b=new THREE.Box3().setFromObject(m.root);if(!b.isEmpty()){box.union(b);ok=true}}
+  for(const m of candidates){
+    m.root.updateWorldMatrix(true,true);
+    const b=new THREE.Box3().setFromObject(m.root,true);
+    if(!b.isEmpty()){box.union(b);ok=true}
+  }
   return ok?box:null;
 }
 function directionVector(name){
@@ -129,49 +159,82 @@ function directionVector(name){
     left:new THREE.Vector3(-1,0,0),right:new THREE.Vector3(1,0,0)
   })[name]||new THREE.Vector3(1,1,1).normalize();
 }
+function boxCorners(box){
+  const a=box.min,b=box.max;
+  return [
+    new THREE.Vector3(a.x,a.y,a.z),new THREE.Vector3(a.x,a.y,b.z),
+    new THREE.Vector3(a.x,b.y,a.z),new THREE.Vector3(a.x,b.y,b.z),
+    new THREE.Vector3(b.x,a.y,a.z),new THREE.Vector3(b.x,a.y,b.z),
+    new THREE.Vector3(b.x,b.y,a.z),new THREE.Vector3(b.x,b.y,b.z)
+  ];
+}
+function cameraBasis(direction, upHint){
+  const forward=direction.clone().normalize().multiplyScalar(-1);
+  let up=upHint.clone().normalize();
+  if(Math.abs(forward.dot(up))>.98) up=new THREE.Vector3(0,0,1);
+  const right=new THREE.Vector3().crossVectors(forward,up).normalize();
+  up=new THREE.Vector3().crossVectors(right,forward).normalize();
+  return {right,up,forward};
+}
 function fitCameraToBox(box,direction=null){
   if(!box)return;
-  const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
-  const w=Math.max(viewport.clientWidth,1),h=Math.max(viewport.clientHeight,1),aspect=w/h;
-  const radius=Math.max(size.length()/2,.0001);
+  const center=box.getCenter(new THREE.Vector3());
+  const size=box.getSize(new THREE.Vector3());
+  const radius=Math.max(size.length()/2,1e-6);
+  const aspect=Math.max(viewport.clientWidth/Math.max(viewport.clientHeight,1),0.05);
+
+  let dir=direction?direction.clone().normalize():camera.position.clone().sub(orbit.target).normalize();
+  if(!Number.isFinite(dir.x)||dir.lengthSq()<.1)dir=new THREE.Vector3(1,1,1).normalize();
+
+  const basis=cameraBasis(dir,camera.up);
+  let halfW=1e-6,halfH=1e-6,halfDepth=1e-6;
+  for(const corner of boxCorners(box)){
+    const rel=corner.clone().sub(center);
+    halfW=Math.max(halfW,Math.abs(rel.dot(basis.right)));
+    halfH=Math.max(halfH,Math.abs(rel.dot(basis.up)));
+    halfDepth=Math.max(halfDepth,Math.abs(rel.dot(dir)));
+  }
+
+  // 10% breathing room around the actual projected extents.
+  halfW*=1.10; halfH*=1.10; halfDepth*=1.10;
   orbit.target.copy(center);
-  let dir=direction?direction.clone().normalize():camera.position.clone().sub(center).normalize();
-  if(!Number.isFinite(dir.x)||dir.lengthSq()<.0001)dir=new THREE.Vector3(1,1,1).normalize();
 
   if(camera.isPerspectiveCamera){
-    const verticalFov=THREE.MathUtils.degToRad(camera.fov);
-    const horizontalFov=2*Math.atan(Math.tan(verticalFov/2)*aspect);
-    const limitingFov=Math.min(verticalFov,horizontalFov);
-    const dist=(radius/Math.sin(Math.max(limitingFov/2,.01)))*1.18;
-    camera.position.copy(center).add(dir.multiplyScalar(dist));
-    camera.near=Math.max(dist-radius*3,.0001);
-    camera.far=Math.max(dist+radius*20,camera.near+1);
+    const vfov=THREE.MathUtils.degToRad(camera.fov);
+    const hfov=2*Math.atan(Math.tan(vfov/2)*aspect);
+    const distV=halfH/Math.max(Math.tan(vfov/2),1e-6);
+    const distH=halfW/Math.max(Math.tan(hfov/2),1e-6);
+    const dist=Math.max(distV,distH)+halfDepth;
+    camera.position.copy(center).add(dir.clone().multiplyScalar(Math.max(dist,radius*.25)));
+    camera.near=Math.max((dist-halfDepth*2)/1000,1e-5);
+    camera.far=Math.max(dist+halfDepth*20+radius*10,100);
   }else{
-    // Project all 8 corners onto the camera's screen axes. This fits flat and
-    // elongated photogrammetry models much more reliably than a sphere radius.
-    const upHint=Math.abs(dir.y)>.999?new THREE.Vector3(0,0,dir.y>0?-1:1):new THREE.Vector3(0,1,0);
-    const right=new THREE.Vector3().crossVectors(dir,upHint).normalize();
-    const up=new THREE.Vector3().crossVectors(right,dir).normalize();
-    let halfW=.0001,halfH=.0001;
-    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
-      const d=new THREE.Vector3(x,y,z).sub(center);
-      halfW=Math.max(halfW,Math.abs(d.dot(right)));
-      halfH=Math.max(halfH,Math.abs(d.dot(up)));
-    }
-    halfW*=1.12;halfH*=1.12;
-    if(halfW/halfH>aspect)halfH=halfW/aspect;else halfW=halfH*aspect;
-    camera.left=-halfW;camera.right=halfW;camera.top=halfH;camera.bottom=-halfH;
-    camera.position.copy(center).add(dir.multiplyScalar(Math.max(radius*4,1)));
-    camera.near=-Math.max(radius*20,100);camera.far=Math.max(radius*20,100);
-    camera.up.copy(up);
+    const neededHalfH=Math.max(halfH,halfW/aspect,1e-6);
+    camera.left=-neededHalfH*aspect;
+    camera.right=neededHalfH*aspect;
+    camera.top=neededHalfH;
+    camera.bottom=-neededHalfH;
+    camera.zoom=1;
+    const dist=Math.max(radius*3,halfDepth*4,1);
+    camera.position.copy(center).add(dir.clone().multiplyScalar(dist));
+    camera.near=-Math.max(radius*20,1000);
+    camera.far=Math.max(radius*20,1000);
   }
-  camera.lookAt(center);camera.updateProjectionMatrix();orbit.update();
+  camera.up.copy(basis.up);
+  camera.lookAt(center);
+  camera.updateProjectionMatrix();
+  orbit.target.copy(center);
+  orbit.update();
 }
 function frameCurrentView(){
-  const box=framingBox();if(!box)return;
+  const box=framingBox();
+  if(box)fitCameraToBox(box);
+}
+function fitSelectedModel(){
+  const box=framingBox();
+  if(!box){setStatus('Ingen model at tilpasse.');return}
   fitCameraToBox(box);
-  // iPad/Safari can report the viewport one layout frame late after import.
-  requestAnimationFrame(()=>fitCameraToBox(framingBox()));
+  setStatus('Valgt model tilpasset og centreret.');
 }
 
 function switchCamera(useOrtho){
@@ -237,7 +300,7 @@ async function loadFiles(fileList){
 function newProject(){
   if(models.length&&!confirm('Opret nyt projekt og fjern modellerne fra arbejdsfladen?'))return;
   cancelCrop();transform.detach();models.forEach(m=>scene.remove(m.root));models.length=0;selectedModel=null;modelNumber=1;releaseAllObjectUrls();
-  rebuildModelList();syncTransformFields();setStatus('Nyt tomt projekt.');
+  undoStack.length=0;redoStack.length=0;updateHistoryButtons();rebuildModelList();syncTransformFields();setStatus('Nyt tomt projekt.');
 }
 
 function updateCropButtons(){
@@ -333,8 +396,23 @@ function applyCrop(keepInside){
   const original=selectedModel,clone=original.root.clone(true);
   clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry=o.geometry.clone()});
   clone.traverse(o=>{if(o.isMesh)cropGeometry(o,cropPoints,keepInside)});
+  const originalWasVisible=original.root.visible;
   original.root.visible=false;
   const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true});
+  pushHistory({
+    label:'beskæring',
+    undo:()=>{
+      scene.remove(m.root);
+      const i=models.indexOf(m);if(i>=0)models.splice(i,1);
+      original.root.visible=originalWasVisible;
+      selectModel(original);rebuildModelList();frameCurrentView();
+    },
+    redo:()=>{
+      if(!models.includes(m)){models.push(m);scene.add(m.root)}
+      original.root.visible=false;
+      selectModel(m);rebuildModelList();frameCurrentView();
+    }
+  });
   cancelCrop();selectModel(m);setStatus('Beskåret kopi oprettet. Originalen er bevaret og skjult.');
 }
 
@@ -353,7 +431,51 @@ function resize(){
   cropOverlay.setAttribute('viewBox',`0 0 ${w} ${h}`);
 }
 
-$('newProjectButton').onclick=newProject;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);$('exportButton').onclick=exportPng;
+
+// ---------- Undo / Redo ----------
+const undoStack=[],redoStack=[];
+let transformStartState=null;
+function cloneTransformState(model){
+  return model?{
+    model,
+    position:model.root.position.clone(),
+    rotation:model.root.rotation.clone(),
+    scale:model.root.scale.clone()
+  }:null;
+}
+function applyTransformState(s){
+  if(!s||!s.model||!models.includes(s.model))return;
+  s.model.root.position.copy(s.position);
+  s.model.root.rotation.copy(s.rotation);
+  s.model.root.scale.copy(s.scale);
+  s.model.root.updateMatrixWorld(true);
+  if(selectedModel===s.model)syncTransformFields();
+}
+function sameTransform(a,b){
+  return a&&b&&a.position.equals(b.position)&&
+    a.rotation.x===b.rotation.x&&a.rotation.y===b.rotation.y&&a.rotation.z===b.rotation.z&&
+    a.scale.equals(b.scale);
+}
+function updateHistoryButtons(){
+  $('undoButton').disabled=!undoStack.length;
+  $('redoButton').disabled=!redoStack.length;
+}
+function pushHistory(action){
+  undoStack.push(action);
+  if(undoStack.length>50)undoStack.shift();
+  redoStack.length=0;
+  updateHistoryButtons();
+}
+function undo(){
+  const a=undoStack.pop();if(!a)return;
+  a.undo();redoStack.push(a);updateHistoryButtons();setStatus(`Fortrudt: ${a.label}`);
+}
+function redo(){
+  const a=redoStack.pop();if(!a)return;
+  a.redo();undoStack.push(a);updateHistoryButtons();setStatus(`Gentaget: ${a.label}`);
+}
+
+$('newProjectButton').onclick=newProject;$('undoButton').onclick=undo;$('redoButton').onclick=redo;$('fitModelButton').onclick=fitSelectedModel;$('addFileButton').onclick=()=>fileInput.click();fileInput.onchange=e=>loadFiles(e.target.files);$('exportButton').onclick=exportPng;
 $('perspectiveButton').onclick=()=>switchCamera(false);$('orthographicButton').onclick=()=>switchCamera(true);$('gridToggle').onchange=e=>grid.visible=e.target.checked;
 $('translateButton').onclick=()=>{transform.setMode('translate');$('translateButton').classList.add('active');$('rotateButton').classList.remove('active')};
 $('rotateButton').onclick=()=>{transform.setMode('rotate');$('rotateButton').classList.add('active');$('translateButton').classList.remove('active')};
@@ -372,5 +494,5 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 ['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend'].forEach(n=>cropInputLayer.addEventListener(n,e=>{if(cropMode){e.preventDefault();e.stopPropagation()}},{passive:false,capture:true}));
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
-window.addEventListener('resize',resize);resize();updateCropButtons();setStatus(`ArchaeoPlan v${VERSION} klar.`);
+window.addEventListener('resize',resize);resize();updateCropButtons();updateHistoryButtons();setStatus(`ArchaeoPlan v${VERSION} klar.`);
 (function animate(){requestAnimationFrame(animate);orbit.update();renderer.render(scene,camera)})();
