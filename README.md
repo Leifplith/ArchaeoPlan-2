@@ -54,3 +54,13 @@ Beskæring i v0.2.8 sker ved eksisterende trekantgrænser. Der skabes endnu ikke
 - Cache-busting på `app.js` og `style.css`, så Safari/GitHub Pages ikke genbruger en ældre JavaScript-version.
 - Kamera-reset og centrering fra v0.2.8 bliver dermed faktisk indlæst.
 - Ingen ændringer i den fungerende beskæring.
+
+
+## v0.2.11
+- Kasserer det faste offset fra v0.2.10.
+- Verdenscentrum er igen (0,0,0).
+- Renderer og kamera bruger nu den faktiske størrelse på selve 3D-viewporten, ikke hele siden.
+- Canvas låses fysisk til viewportens kanter.
+- Tomt projekt og "Nyt projekt" nulstiller kamera og OrbitControls til (0,0,0).
+- Perspektiv starter lidt længere ude.
+- Beskæring og undo/redo er uændret.

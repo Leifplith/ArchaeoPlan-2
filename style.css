@@ -55,3 +55,11 @@ input[type=number]{margin-top:3px;width:100%;border:1px solid #a7afb7;border-rad
   padding: 6px 9px;
 }
 #undoButton:disabled, #redoButton:disabled { opacity: .4; }
+
+/* v0.2.11: keep the WebGL canvas locked to the actual viewport box */
+#viewport > canvas{
+  position:absolute;
+  inset:0;
+  width:100% !important;
+  height:100% !important;
+}
