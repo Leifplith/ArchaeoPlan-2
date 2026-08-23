@@ -1,66 +1,33 @@
-# ArchaeoPlan v0.2.9
+# ArchaeoPlan v0.2.12 clean
 
-Ren genopbygning af ArchaeoPlan.
+Denne udgave er en oprydningsversion baseret direkte på den testede og fungerende v0.2.11.
 
-Fokus:
-1. Stabil tekstur på GLB og OBJ.
-2. Simpel beskæring med frihånd eller polygon.
-3. Automatisk centrering ved import og ved Top/Front/Side-visninger.
-
-## Filimport
-- GLB
-- GLTF
-- OBJ + MTL + teksturer
-- PLY
-
-Ved OBJ vælges OBJ, MTL og alle teksturbilleder samtidigt.
-
-## Beskæring
-- Frihånd med mus, finger eller Apple Pencil.
-- Polygon med punkt-for-punkt markering.
+## Det fungerer i denne baseline
+- GLB / GLTF import med tekstur.
+- OBJ + MTL + teksturer.
+- PLY.
+- Perspektivisk og ortografisk visning.
+- Top, Bund, Front, Bag, Venstre og Højre.
+- Korrekt viewport- og kameracentrering.
+- Frihåndsbeskæring med mus, finger og Apple Pencil.
+- Frihånd kan fortsættes efter løft; nye strøg forbindes med en lige linje.
+- Polygonbeskæring.
 - Behold indenfor / Fjern indenfor.
-- Originalmodellen bevares og skjules.
-- Der oprettes en beskåret kopi.
+- Original model bevares ved beskæring.
+- Flyt, drej og lås.
+- Fortryd / gentag for relevante modelhandlinger.
+- Tilpas model.
+- PNG-eksport.
 
-## Centrering
-- Nyimporteret valgt model indrammes automatisk.
-- Top, Bund, Front, Bag, Venstre og Højre indrammer og centrerer den valgte model.
-- Modellens koordinater ændres ikke; kun kameraet flyttes.
+## Hvad der er ryddet op
+- Historiske versionsnoter og dobbelte README-afsnit er fjernet.
+- Gamle patch-kommentarer i CSS er fjernet.
+- Canvas-regler er samlet ét sted.
+- Versions- og cachemarkører er ens i `index.html` og `app.js`.
+- JavaScript-funktionerne er gennemgået for dubletter og ubrugte ældre kamerafunktioner.
 
-## Bemærkning
-Beskæring i v0.2.8 sker ved eksisterende trekantgrænser. Der skabes endnu ikke nye trekanter præcis langs den tegnede kant.
+## Bevidst ikke ændret
+Der er ikke ændret i den fungerende programlogik fra v0.2.11. Denne build skal derfor testes som en ren baseline, før nye funktioner tilføjes.
 
-
-## v0.2.8
-- Ny kameratilpasning beregner modellens faktiske projicerede udstrækning i den valgte synsretning.
-- Import og standardvisninger centreres uden at flytte modellens koordinater.
-- Ny **Tilpas model**-knap.
-- **↶ Fortryd** og **↷ Annuller fortryd**.
-- Historik for flytning, drejning, numeriske transformationsændringer og beskæring.
-- Kameraets almindelige zoom/rotation/panorering lægges ikke i historikken.
-- Den fungerende frihåndsbeskæring fra v0.2.6 er bevaret.
-
-
-## v0.2.8
-- Rettelse af selve kameraets grundposition.
-- Et tomt projekt viser nu verdens nulpunkt (0,0,0) i centrum af arbejdsfeltet.
-- **Nyt projekt** nulstiller kamera og OrbitControls til verdens nulpunkt.
-- Når en model findes, bruges fortsat modellens geometriske bounding box til centrering og indramning.
-- Modeller og deres originale koordinater flyttes ikke.
-- Beskæring og Undo/Redo fra v0.2.7 er ikke ændret.
-
-
-## v0.2.9
-- Cache-busting på `app.js` og `style.css`, så Safari/GitHub Pages ikke genbruger en ældre JavaScript-version.
-- Kamera-reset og centrering fra v0.2.8 bliver dermed faktisk indlæst.
-- Ingen ændringer i den fungerende beskæring.
-
-
-## v0.2.11
-- Kasserer det faste offset fra v0.2.10.
-- Verdenscentrum er igen (0,0,0).
-- Renderer og kamera bruger nu den faktiske størrelse på selve 3D-viewporten, ikke hele siden.
-- Canvas låses fysisk til viewportens kanter.
-- Tomt projekt og "Nyt projekt" nulstiller kamera og OrbitControls til (0,0,0).
-- Perspektiv starter lidt længere ude.
-- Beskæring og undo/redo er uændret.
+## Teknisk note om beskæring
+Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke nye trekanter præcist langs den tegnede kant.

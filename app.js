@@ -6,7 +6,10 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 
-const VERSION='0.2.11';
+// ArchaeoPlan 0.2.12-clean
+// Cleanup release based directly on the tested 0.2.11 behavior.
+
+const VERSION='0.2.12-clean';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),modelList=$('modelList');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -143,7 +146,6 @@ function applyTransformFields(){
     redo:()=>applyTransformState(after)
   });
 }));
-
 
 
 function viewportAspect(){

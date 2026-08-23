@@ -29,7 +29,6 @@ input[type=number]{margin-top:3px;width:100%;border:1px solid #a7afb7;border-rad
 .model-row.selected{border-color:var(--accent);background:#eaf4fb}.model-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;cursor:pointer}
 .model-delete{border:0;background:transparent;color:#9e2525;padding:2px;font-size:18px}
 #viewport{grid-area:view;position:relative;min-width:0;overflow:hidden;touch-action:none;background:#d6d9dc}
-#viewport canvas{display:block}
 #dropZone{display:none;position:absolute;inset:18px;z-index:40;border:3px dashed #2f79ad;border-radius:15px;background:rgba(226,242,253,.92);align-items:center;justify-content:center;flex-direction:column;color:#215d88;pointer-events:none}
 #dropZone.show{display:flex}#dropZone span{font-size:12px;margin-top:6px}
 #status{position:absolute;left:12px;bottom:max(12px,env(safe-area-inset-bottom));max-width:calc(100% - 24px);border-radius:7px;background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(0,0,0,.18);padding:7px 10px;font-size:12px;pointer-events:none;z-index:25}
@@ -47,7 +46,6 @@ input[type=number]{margin-top:3px;width:100%;border:1px solid #a7afb7;border-rad
   .topbar h1{font-size:17px}.header-actions button{padding:7px 8px;font-size:12px}
 }
 
-/* v0.2.7 */
 #undoButton, #redoButton {
   min-width: 38px;
   font-size: 20px;
@@ -56,8 +54,8 @@ input[type=number]{margin-top:3px;width:100%;border:1px solid #a7afb7;border-rad
 }
 #undoButton:disabled, #redoButton:disabled { opacity: .4; }
 
-/* v0.2.11: keep the WebGL canvas locked to the actual viewport box */
 #viewport > canvas{
+  display:block;
   position:absolute;
   inset:0;
   width:100% !important;
