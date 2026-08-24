@@ -11,9 +11,9 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.19';
+const VERSION='0.2.20';
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog');
+const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
 const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
@@ -81,7 +81,7 @@ let exportFrameVisible=false;
 let savedViews=[];
 let preparedProject=null;
 let underlay=null,underlayImageData=null,underlaySelected=false;
-let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false;
+let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false,preparedFrieze=null;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -90,6 +90,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  friezeReady:'Frisen er klar', friezeReadyText:'Vælg hvordan det udfoldede billede skal gemmes.', friezeSavePng:'Gem PNG', friezeShare:'Del / Gem til Fotos', friezeClose:'Luk', friezePrepared:'Frisen er klar til at blive gemt.',
+
   unwrap:'Friseudrulning', unwrapHelp:'Til cylindriske eller næsten cylindriske genstande. Vælg aksen gennem genstanden, og markér start og slut direkte på modellen.', unwrapAxis:'Akse', unwrapWidth:'Bredde', unwrapStart:'Vælg start', unwrapEnd:'Vælg slut', unwrapFull:'Hele omkredsen', unwrapReverse:'Vend retning', unwrapExport:'Eksportér udfoldet frise', unwrapFullStatus:'Start/slut er ikke valgt. Hele omkredsen bruges.', unwrapStartChosen:'Startpunkt valgt. Vælg nu slutpunkt.', unwrapEndChosen:'Slutpunkt valgt.', unwrapPickStart:'Tryk på modellen for at vælge frisenes start.', unwrapPickEnd:'Tryk på modellen for at vælge frisenes slut.', unwrapNeedModel:'Vælg først en model.', unwrapWorking:'Ruller frisen ud…', unwrapDone:'Udfoldet frise eksporteret.', unwrapNoGeometry:'Der blev ikke fundet egnet geometri i det valgte område.',
 
   underlay:'Grundplan / underlag', loadUnderlay:'Indlæs grundplan', removeUnderlay:'Fjern grundplan', underlayMove:'Flyt', underlayRotate:'Drej', underlayScale:'Skala', underlayOpacity:'Gennemsigtighed', underlayVisible:'Vis grundplan', underlayExport:'Medtag i eksport', underlayHelp:'Grundplanen ligger som et særskilt, plant underlag under 3D-modellerne. Tilpas den og lås den derefter.', underlayLoaded:'Grundplan indlæst.', underlayRemoved:'Grundplan fjernet.', underlayLocked:'Grundplanen er låst.', underlayUnlocked:'Grundplanen er låst op.', underlaySelect:'Indlæs først en grundplan.', underlayFileError:'Kunne ikke indlæse grundplanen: {error}',
@@ -143,6 +145,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  friezeReady:'Der Fries ist fertig', friezeReadyText:'Wählen Sie, wie das abgewickelte Bild gespeichert werden soll.', friezeSavePng:'PNG speichern', friezeShare:'Teilen / In Fotos sichern', friezeClose:'Schließen', friezePrepared:'Der Fries kann jetzt gespeichert werden.',
+
   unwrap:'Fries abwickeln', unwrapHelp:'Für zylindrische oder annähernd zylindrische Objekte. Achse wählen und Start und Ende direkt am Modell markieren.', unwrapAxis:'Achse', unwrapWidth:'Breite', unwrapStart:'Start wählen', unwrapEnd:'Ende wählen', unwrapFull:'Gesamter Umfang', unwrapReverse:'Richtung umkehren', unwrapExport:'Abgewickelten Fries exportieren', unwrapFullStatus:'Start/Ende nicht gewählt. Der gesamte Umfang wird verwendet.', unwrapStartChosen:'Startpunkt gewählt. Jetzt Endpunkt wählen.', unwrapEndChosen:'Endpunkt gewählt.', unwrapPickStart:'Auf das Modell tippen, um den Start des Frieses zu wählen.', unwrapPickEnd:'Auf das Modell tippen, um das Ende des Frieses zu wählen.', unwrapNeedModel:'Bitte zuerst ein Modell wählen.', unwrapWorking:'Fries wird abgewickelt…', unwrapDone:'Abgewickelter Fries exportiert.', unwrapNoGeometry:'Im gewählten Bereich wurde keine geeignete Geometrie gefunden.',
 
   underlay:'Grundplan / Unterlage', loadUnderlay:'Grundplan laden', removeUnderlay:'Grundplan entfernen', underlayMove:'Verschieben', underlayRotate:'Drehen', underlayScale:'Skalierung', underlayOpacity:'Transparenz', underlayVisible:'Grundplan anzeigen', underlayExport:'Beim Export einbeziehen', underlayHelp:'Der Grundplan liegt als separate ebene Unterlage unter den 3D-Modellen. Ausrichten und anschließend sperren.', underlayLoaded:'Grundplan geladen.', underlayRemoved:'Grundplan entfernt.', underlayLocked:'Der Grundplan ist gesperrt.', underlayUnlocked:'Der Grundplan ist entsperrt.', underlaySelect:'Bitte zuerst einen Grundplan laden.', underlayFileError:'Grundplan konnte nicht geladen werden: {error}',
@@ -193,6 +197,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  friezeReady:'Frieze is ready', friezeReadyText:'Choose how to save the unwrapped image.', friezeSavePng:'Save PNG', friezeShare:'Share / Save to Photos', friezeClose:'Close', friezePrepared:'The frieze is ready to save.',
+
   unwrap:'Frieze unwrap', unwrapHelp:'For cylindrical or near-cylindrical objects. Choose the object axis, then mark start and end directly on the model.', unwrapAxis:'Axis', unwrapWidth:'Width', unwrapStart:'Choose start', unwrapEnd:'Choose end', unwrapFull:'Full circumference', unwrapReverse:'Reverse direction', unwrapExport:'Export unwrapped frieze', unwrapFullStatus:'Start/end not selected. Full circumference will be used.', unwrapStartChosen:'Start point selected. Now choose the end point.', unwrapEndChosen:'End point selected.', unwrapPickStart:'Tap the model to choose the frieze start.', unwrapPickEnd:'Tap the model to choose the frieze end.', unwrapNeedModel:'Select a model first.', unwrapWorking:'Unwrapping frieze…', unwrapDone:'Unwrapped frieze exported.', unwrapNoGeometry:'No suitable geometry was found in the selected area.',
 
   underlay:'Plan / underlay', loadUnderlay:'Load plan', removeUnderlay:'Remove plan', underlayMove:'Move', underlayRotate:'Rotate', underlayScale:'Scale', underlayOpacity:'Opacity', underlayVisible:'Show plan', underlayExport:'Include in export', underlayHelp:'The plan is a separate flat underlay beneath the 3D models. Align it, then lock it.', underlayLoaded:'Plan loaded.', underlayRemoved:'Plan removed.', underlayLocked:'The plan is locked.', underlayUnlocked:'The plan is unlocked.', underlaySelect:'Load a plan first.', underlayFileError:'Could not load plan: {error}',
@@ -243,6 +249,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  friezeReady:'La frise est prête', friezeReadyText:'Choisissez comment enregistrer l’image déroulée.', friezeSavePng:'Enregistrer PNG', friezeShare:'Partager / Enregistrer dans Photos', friezeClose:'Fermer', friezePrepared:'La frise est prête à être enregistrée.',
+
   unwrap:'Dérouler la frise', unwrapHelp:'Pour les objets cylindriques ou presque cylindriques. Choisissez l’axe, puis marquez le début et la fin directement sur le modèle.', unwrapAxis:'Axe', unwrapWidth:'Largeur', unwrapStart:'Choisir le début', unwrapEnd:'Choisir la fin', unwrapFull:'Circonférence complète', unwrapReverse:'Inverser le sens', unwrapExport:'Exporter la frise déroulée', unwrapFullStatus:'Début/fin non choisis. Toute la circonférence sera utilisée.', unwrapStartChosen:'Point de départ choisi. Choisissez maintenant la fin.', unwrapEndChosen:'Point de fin choisi.', unwrapPickStart:'Touchez le modèle pour choisir le début de la frise.', unwrapPickEnd:'Touchez le modèle pour choisir la fin de la frise.', unwrapNeedModel:'Sélectionnez d’abord un modèle.', unwrapWorking:'Déroulement de la frise…', unwrapDone:'Frise déroulée exportée.', unwrapNoGeometry:'Aucune géométrie appropriée n’a été trouvée dans la zone choisie.',
 
   underlay:'Plan / fond', loadUnderlay:'Charger le plan', removeUnderlay:'Supprimer le plan', underlayMove:'Déplacer', underlayRotate:'Tourner', underlayScale:'Échelle', underlayOpacity:'Opacité', underlayVisible:'Afficher le plan', underlayExport:'Inclure dans l’export', underlayHelp:'Le plan est un fond plat séparé sous les modèles 3D. Ajustez-le puis verrouillez-le.', underlayLoaded:'Plan chargé.', underlayRemoved:'Plan supprimé.', underlayLocked:'Le plan est verrouillé.', underlayUnlocked:'Le plan est déverrouillé.', underlaySelect:'Chargez d’abord un plan.', underlayFileError:'Impossible de charger le plan : {error}',
@@ -366,6 +374,8 @@ function applyLanguage(lang){
   setCheckText('showNorthArrow','showNorth');setLabelPrefix('northAngle','rotationDeg');setLabelPrefix('northPosition','position');
   setText('scaleNorthNote','scaleNorthNote');setText('exportNote','exportNote');
   setText('unwrapHeading','unwrap');setText('unwrapHelp','unwrapHelp');setLabelPrefix('unwrapAxis','unwrapAxis');setLabelPrefix('unwrapWidth','unwrapWidth');setText('unwrapStartButton','unwrapStart');setText('unwrapEndButton','unwrapEnd');setText('unwrapFullButton','unwrapFull');setText('unwrapReverseButton','unwrapReverse');setText('unwrapExportButton','unwrapExport');updateUnwrapStatus();
+  setText('friezeReadyHeading','friezeReady');setText('friezeReadyText','friezeReadyText');
+  setText('saveFriezePngButton','friezeSavePng');setText('shareFriezeButton','friezeShare');setText('cancelFriezeSaveButton','friezeClose');
   setText('docsHeading','docs');setText('docsText','docsText');setText('dropStrong','drop');setText('dropText','dropText');
 
   setText('projectReadyHeading','projectReady');setText('projectReadyText','projectReadyText');
@@ -438,7 +448,57 @@ function materialForUnwrap(mat){if(!mat)return new THREE.MeshBasicMaterial({colo
 function materialIndexForTriangle(geometry,triIndex){const vertexIndex=triIndex*3;for(let i=0;i<(geometry.groups||[]).length;i++){const g=geometry.groups[i];if(vertexIndex>=g.start&&vertexIndex<g.start+g.count)return g.materialIndex||0}return 0}
 function buildUnwrappedGroup(){if(!selectedModel)return null;const axis=$('unwrapAxis').value,box=selectedModelWorldBox();if(!box)return null;const center=box.getCenter(new THREE.Vector3()),info=unwrapAxisInfo(axis),full=(unwrapStartAngle==null||unwrapEndAngle==null),start=full?0:unwrapStartAngle;let span=full?Math.PI*2:angleOffset(unwrapEndAngle,start,unwrapReverse);if(span<THREE.MathUtils.degToRad(.5))span=Math.PI*2;const meshes=[];let radiusSum=0,radiusCount=0,axisMin=Infinity,axisMax=-Infinity;selectedModel.root.updateWorldMatrix(true,true);selectedModel.root.traverse(obj=>{if(!obj.isMesh||!obj.geometry?.attributes?.position)return;const geo=obj.geometry.index?obj.geometry.toNonIndexed():obj.geometry.clone(),pos=geo.attributes.position,uv=geo.attributes.uv,col=geo.attributes.color,worldVerts=[];for(let i=0;i<pos.count;i++){const p=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(obj.matrixWorld);worldVerts.push(p);const r=info.radial(p,center);radiusSum+=Math.hypot(r.u,r.v);radiusCount++;const ax=info.axial(p);axisMin=Math.min(axisMin,ax);axisMax=Math.max(axisMax,ax)}meshes.push({obj,geo,worldVerts,uv,col})});if(!meshes.length||!radiusCount)return null;const refRadius=Math.max(radiusSum/radiusCount,1e-6),outGroup=new THREE.Group();let kept=0;for(const item of meshes){const{obj,geo,worldVerts,uv,col}=item,materials=Array.isArray(obj.material)?obj.material:[obj.material],buckets=new Map(),triCount=Math.floor(worldVerts.length/3);for(let t=0;t<triCount;t++){const p0=worldVerts[t*3],p1=worldVerts[t*3+1],p2=worldVerts[t*3+2],centroid=p0.clone().add(p1).add(p2).multiplyScalar(1/3),ca=angleForPoint(centroid,center,axis),co=angleOffset(ca,start,unwrapReverse);if(!full&&co>span)continue;const mi=materialIndexForTriangle(geo,t);if(!buckets.has(mi))buckets.set(mi,{p:[],uv:[],c:[]});const b=buckets.get(mi);for(let k=0;k<3;k++){const vi=t*3+k,p=worldVerts[vi],a=angleForPoint(p,center,axis);let off=angleOffset(a,start,unwrapReverse);while(off-co>Math.PI)off-=Math.PI*2;while(co-off>Math.PI)off+=Math.PI*2;const x=off*refRadius,y=info.axial(p)-axisMin;b.p.push(x,y,0);if(uv)b.uv.push(uv.getX(vi),uv.getY(vi));if(col)b.c.push(col.getX(vi),col.getY(vi),col.getZ(vi))}kept++}for(const[mi,b]of buckets){if(!b.p.length)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));if(b.uv.length)g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));if(b.c.length)g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));outGroup.add(new THREE.Mesh(g,materialForUnwrap(materials[mi]||materials[0])))}}if(!kept)return null;outGroup.userData.unwrapWidth=span*refRadius;outGroup.userData.unwrapHeight=Math.max(axisMax-axisMin,1e-6);return outGroup}
 async function renderUnwrappedGroup(group,outW){const aspect=Math.max(group.userData.unwrapWidth/group.userData.unwrapHeight,.01),outH=Math.max(500,Math.min(50000,Math.round(outW/aspect))),scene2=new THREE.Scene();scene2.background=new THREE.Color(0xffffff);scene2.add(group);const w=group.userData.unwrapWidth,h=group.userData.unwrapHeight,cam=new THREE.OrthographicCamera(0,w,h,0,-100,100);cam.position.set(0,0,10);cam.lookAt(0,0,0);cam.updateProjectionMatrix();const finalCanvas=document.createElement('canvas');finalCanvas.width=outW;finalCanvas.height=outH;const ctx=finalCanvas.getContext('2d');if(!ctx)throw new Error('Kunne ikke oprette eksportlærred.');const oldSize=new THREE.Vector2();renderer.getSize(oldSize);const oldPR=renderer.getPixelRatio(),tileMax=rendererMaxTileSize(),cols=Math.ceil(outW/tileMax),rows=Math.ceil(outH/tileMax);let done=0,total=cols*rows;renderer.setPixelRatio(1);try{const full={left:0,right:w,top:h,bottom:0};for(let row=0;row<rows;row++){for(let col=0;col<cols;col++){const x=col*tileMax,y=row*tileMax,tw=Math.min(tileMax,outW-x),th=Math.min(tileMax,outH-y);renderer.setSize(tw,th,false);setOrthoTile(cam,outW,outH,x,y,tw,th,full);renderer.render(scene2,cam);ctx.drawImage(renderer.domElement,0,0,tw,th,x,y,tw,th);done++;setStatus(`${tr('unwrapWorking')} ${done}/${total}`);await new Promise(r=>setTimeout(r,0))}}return await new Promise((resolve,reject)=>finalCanvas.toBlob(b=>b?resolve(b):reject(new Error('PNG kunne ikke oprettes.')),'image/png'))}finally{renderer.setPixelRatio(oldPR);renderer.setSize(oldSize.x,oldSize.y,false);group.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose()}})}}
-async function exportUnwrappedFrieze(){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}setStatus(tr('unwrapWorking'));try{const group=buildUnwrappedGroup();if(!group){setStatus(tr('unwrapNoGeometry'));return}const outW=Math.max(1000,Math.min(50000,parseInt($('unwrapWidth').value)||12000)),blob=await renderUnwrappedGroup(group,outW),file=new File([blob],`${selectedModel.name.replace(/\.[^.]+$/,'')}-frise.png`,{type:'image/png'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){try{await navigator.share({files:[file],title:'ArchaeoPlan frieze'});setStatus(tr('unwrapDone'));return}catch(err){if(err?.name==='AbortError')return}}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setStatus(tr('unwrapDone'))}catch(err){console.error(err);setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`)}}
+async function exportUnwrappedFrieze(){
+  if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}
+  setStatus(tr('unwrapWorking'));
+  try{
+    const group=buildUnwrappedGroup();
+    if(!group){setStatus(tr('unwrapNoGeometry'));return}
+    const outW=Math.max(1000,Math.min(50000,parseInt($('unwrapWidth').value)||12000));
+    const blob=await renderUnwrappedGroup(group,outW);
+    const filename=`${selectedModel.name.replace(/\.[^.]+$/,'')}-frise.png`;
+    preparedFrieze={blob,filename};
+    if(friezeSaveDialog?.showModal)friezeSaveDialog.showModal();
+    setStatus(tr('friezePrepared'));
+  }catch(err){
+    console.error(err);
+    setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`);
+  }
+}
+
+function downloadPreparedFrieze(){
+  if(!preparedFrieze)return;
+  const {blob,filename}=preparedFrieze;
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  friezeSaveDialog?.close();
+  preparedFrieze=null;
+  setStatus(tr('unwrapDone'));
+}
+
+async function sharePreparedFrieze(){
+  if(!preparedFrieze)return;
+  const {blob,filename}=preparedFrieze;
+  try{
+    const file=new File([blob],filename,{type:'image/png'});
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+      await navigator.share({files:[file],title:'ArchaeoPlan frieze'});
+      friezeSaveDialog?.close();
+      preparedFrieze=null;
+      setStatus(tr('unwrapDone'));
+      return;
+    }
+    downloadPreparedFrieze();
+  }catch(err){
+    if(err?.name==='AbortError')return;
+    console.error(err);
+    setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`);
+  }
+}
+
 
 // ---------- Plan / underlay ----------
 function updateUnderlayUi(){
@@ -1675,6 +1735,9 @@ function redo(){
 }
 
 
+$('saveFriezePngButton').onclick=downloadPreparedFrieze;
+$('shareFriezeButton').onclick=sharePreparedFrieze;
+$('cancelFriezeSaveButton').onclick=()=>{friezeSaveDialog.close();preparedFrieze=null;};
 $('unwrapStartButton').onclick=()=>beginUnwrapPick('start');
 $('unwrapEndButton').onclick=()=>beginUnwrapPick('end');
 $('unwrapFullButton').onclick=resetUnwrapFull;
