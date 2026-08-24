@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.17';
+const VERSION='0.2.19';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -81,6 +81,7 @@ let exportFrameVisible=false;
 let savedViews=[];
 let preparedProject=null;
 let underlay=null,underlayImageData=null,underlaySelected=false;
+let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -89,6 +90,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  unwrap:'Friseudrulning', unwrapHelp:'Til cylindriske eller næsten cylindriske genstande. Vælg aksen gennem genstanden, og markér start og slut direkte på modellen.', unwrapAxis:'Akse', unwrapWidth:'Bredde', unwrapStart:'Vælg start', unwrapEnd:'Vælg slut', unwrapFull:'Hele omkredsen', unwrapReverse:'Vend retning', unwrapExport:'Eksportér udfoldet frise', unwrapFullStatus:'Start/slut er ikke valgt. Hele omkredsen bruges.', unwrapStartChosen:'Startpunkt valgt. Vælg nu slutpunkt.', unwrapEndChosen:'Slutpunkt valgt.', unwrapPickStart:'Tryk på modellen for at vælge frisenes start.', unwrapPickEnd:'Tryk på modellen for at vælge frisenes slut.', unwrapNeedModel:'Vælg først en model.', unwrapWorking:'Ruller frisen ud…', unwrapDone:'Udfoldet frise eksporteret.', unwrapNoGeometry:'Der blev ikke fundet egnet geometri i det valgte område.',
+
   underlay:'Grundplan / underlag', loadUnderlay:'Indlæs grundplan', removeUnderlay:'Fjern grundplan', underlayMove:'Flyt', underlayRotate:'Drej', underlayScale:'Skala', underlayOpacity:'Gennemsigtighed', underlayVisible:'Vis grundplan', underlayExport:'Medtag i eksport', underlayHelp:'Grundplanen ligger som et særskilt, plant underlag under 3D-modellerne. Tilpas den og lås den derefter.', underlayLoaded:'Grundplan indlæst.', underlayRemoved:'Grundplan fjernet.', underlayLocked:'Grundplanen er låst.', underlayUnlocked:'Grundplanen er låst op.', underlaySelect:'Indlæs først en grundplan.', underlayFileError:'Kunne ikke indlæse grundplanen: {error}',
 
   languageName:'Dansk',
@@ -140,6 +143,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  unwrap:'Fries abwickeln', unwrapHelp:'Für zylindrische oder annähernd zylindrische Objekte. Achse wählen und Start und Ende direkt am Modell markieren.', unwrapAxis:'Achse', unwrapWidth:'Breite', unwrapStart:'Start wählen', unwrapEnd:'Ende wählen', unwrapFull:'Gesamter Umfang', unwrapReverse:'Richtung umkehren', unwrapExport:'Abgewickelten Fries exportieren', unwrapFullStatus:'Start/Ende nicht gewählt. Der gesamte Umfang wird verwendet.', unwrapStartChosen:'Startpunkt gewählt. Jetzt Endpunkt wählen.', unwrapEndChosen:'Endpunkt gewählt.', unwrapPickStart:'Auf das Modell tippen, um den Start des Frieses zu wählen.', unwrapPickEnd:'Auf das Modell tippen, um das Ende des Frieses zu wählen.', unwrapNeedModel:'Bitte zuerst ein Modell wählen.', unwrapWorking:'Fries wird abgewickelt…', unwrapDone:'Abgewickelter Fries exportiert.', unwrapNoGeometry:'Im gewählten Bereich wurde keine geeignete Geometrie gefunden.',
+
   underlay:'Grundplan / Unterlage', loadUnderlay:'Grundplan laden', removeUnderlay:'Grundplan entfernen', underlayMove:'Verschieben', underlayRotate:'Drehen', underlayScale:'Skalierung', underlayOpacity:'Transparenz', underlayVisible:'Grundplan anzeigen', underlayExport:'Beim Export einbeziehen', underlayHelp:'Der Grundplan liegt als separate ebene Unterlage unter den 3D-Modellen. Ausrichten und anschließend sperren.', underlayLoaded:'Grundplan geladen.', underlayRemoved:'Grundplan entfernt.', underlayLocked:'Der Grundplan ist gesperrt.', underlayUnlocked:'Der Grundplan ist entsperrt.', underlaySelect:'Bitte zuerst einen Grundplan laden.', underlayFileError:'Grundplan konnte nicht geladen werden: {error}',
 
   newProject:'Neues Projekt', saveProject:'Projekt speichern', openProject:'Projekt öffnen', addFile:'Datei hinzufügen',
@@ -188,6 +193,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  unwrap:'Frieze unwrap', unwrapHelp:'For cylindrical or near-cylindrical objects. Choose the object axis, then mark start and end directly on the model.', unwrapAxis:'Axis', unwrapWidth:'Width', unwrapStart:'Choose start', unwrapEnd:'Choose end', unwrapFull:'Full circumference', unwrapReverse:'Reverse direction', unwrapExport:'Export unwrapped frieze', unwrapFullStatus:'Start/end not selected. Full circumference will be used.', unwrapStartChosen:'Start point selected. Now choose the end point.', unwrapEndChosen:'End point selected.', unwrapPickStart:'Tap the model to choose the frieze start.', unwrapPickEnd:'Tap the model to choose the frieze end.', unwrapNeedModel:'Select a model first.', unwrapWorking:'Unwrapping frieze…', unwrapDone:'Unwrapped frieze exported.', unwrapNoGeometry:'No suitable geometry was found in the selected area.',
+
   underlay:'Plan / underlay', loadUnderlay:'Load plan', removeUnderlay:'Remove plan', underlayMove:'Move', underlayRotate:'Rotate', underlayScale:'Scale', underlayOpacity:'Opacity', underlayVisible:'Show plan', underlayExport:'Include in export', underlayHelp:'The plan is a separate flat underlay beneath the 3D models. Align it, then lock it.', underlayLoaded:'Plan loaded.', underlayRemoved:'Plan removed.', underlayLocked:'The plan is locked.', underlayUnlocked:'The plan is unlocked.', underlaySelect:'Load a plan first.', underlayFileError:'Could not load plan: {error}',
 
   newProject:'New project', saveProject:'Save project', openProject:'Open project', addFile:'Add file',
@@ -236,6 +243,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  unwrap:'Dérouler la frise', unwrapHelp:'Pour les objets cylindriques ou presque cylindriques. Choisissez l’axe, puis marquez le début et la fin directement sur le modèle.', unwrapAxis:'Axe', unwrapWidth:'Largeur', unwrapStart:'Choisir le début', unwrapEnd:'Choisir la fin', unwrapFull:'Circonférence complète', unwrapReverse:'Inverser le sens', unwrapExport:'Exporter la frise déroulée', unwrapFullStatus:'Début/fin non choisis. Toute la circonférence sera utilisée.', unwrapStartChosen:'Point de départ choisi. Choisissez maintenant la fin.', unwrapEndChosen:'Point de fin choisi.', unwrapPickStart:'Touchez le modèle pour choisir le début de la frise.', unwrapPickEnd:'Touchez le modèle pour choisir la fin de la frise.', unwrapNeedModel:'Sélectionnez d’abord un modèle.', unwrapWorking:'Déroulement de la frise…', unwrapDone:'Frise déroulée exportée.', unwrapNoGeometry:'Aucune géométrie appropriée n’a été trouvée dans la zone choisie.',
+
   underlay:'Plan / fond', loadUnderlay:'Charger le plan', removeUnderlay:'Supprimer le plan', underlayMove:'Déplacer', underlayRotate:'Tourner', underlayScale:'Échelle', underlayOpacity:'Opacité', underlayVisible:'Afficher le plan', underlayExport:'Inclure dans l’export', underlayHelp:'Le plan est un fond plat séparé sous les modèles 3D. Ajustez-le puis verrouillez-le.', underlayLoaded:'Plan chargé.', underlayRemoved:'Plan supprimé.', underlayLocked:'Le plan est verrouillé.', underlayUnlocked:'Le plan est déverrouillé.', underlaySelect:'Chargez d’abord un plan.', underlayFileError:'Impossible de charger le plan : {error}',
 
   newProject:'Nouveau projet', saveProject:'Enregistrer le projet', openProject:'Ouvrir le projet', addFile:'Ajouter un fichier',
@@ -356,12 +365,24 @@ function applyLanguage(lang){
   });
   setCheckText('showNorthArrow','showNorth');setLabelPrefix('northAngle','rotationDeg');setLabelPrefix('northPosition','position');
   setText('scaleNorthNote','scaleNorthNote');setText('exportNote','exportNote');
+  setText('unwrapHeading','unwrap');setText('unwrapHelp','unwrapHelp');setLabelPrefix('unwrapAxis','unwrapAxis');setLabelPrefix('unwrapWidth','unwrapWidth');setText('unwrapStartButton','unwrapStart');setText('unwrapEndButton','unwrapEnd');setText('unwrapFullButton','unwrapFull');setText('unwrapReverseButton','unwrapReverse');setText('unwrapExportButton','unwrapExport');updateUnwrapStatus();
   setText('docsHeading','docs');setText('docsText','docsText');setText('dropStrong','drop');setText('dropText','dropText');
 
   setText('projectReadyHeading','projectReady');setText('projectReadyText','projectReadyText');
   setText('chooseProjectLocationButton','chooseLocation');setText('cancelProjectSaveButton','cancelSave');
 
   rebuildModelList();renderSavedViews();syncTransformFields();
+}
+
+
+function optimiseTextureForDocumentation(tex){
+  if(!tex)return;
+  const maxAniso=renderer.capabilities.getMaxAnisotropy?.()||1;
+  tex.anisotropy=Math.max(1,maxAniso);
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  tex.magFilter=THREE.LinearFilter;
+  tex.generateMipmaps=true;
+  tex.needsUpdate=true;
 }
 
 function documentationMaterial(source,obj){
@@ -378,6 +399,16 @@ function documentationMaterial(source,obj){
 }
 function prepareDocumentationMaterials(root){
   root.traverse(obj=>{
+    const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+    for(const m of mats){
+      if(!m)continue;
+      for(const key of ['map','aoMap','lightMap','normalMap','roughnessMap','metalnessMap','alphaMap','emissiveMap']){
+        if(m[key])optimiseTextureForDocumentation(m[key]);
+      }
+    }
+  });
+
+  root.traverse(obj=>{
     if(obj.isPoints){
       const old=obj.material;
       obj.material=new THREE.PointsMaterial({size:old?.size||.01,sizeAttenuation:old?.sizeAttenuation??true,map:old?.map||null,color:old?.color?.clone?.()||new THREE.Color(0xffffff),vertexColors:Boolean(obj.geometry?.attributes?.color),transparent:Boolean(old?.transparent),opacity:old?.opacity??1});
@@ -389,6 +420,25 @@ function prepareDocumentationMaterials(root){
   });
 }
 
+
+
+// ---------- Cylindrical frieze unwrap ----------
+function normAngle(a){const t=Math.PI*2;return((a%t)+t)%t}
+function unwrapAxisInfo(axis){if(axis==='x')return{axial:p=>p.x,radial:(p,c)=>({u:p.z-c.z,v:p.y-c.y})};if(axis==='z')return{axial:p=>p.z,radial:(p,c)=>({u:p.x-c.x,v:p.y-c.y})};return{axial:p=>p.y,radial:(p,c)=>({u:p.x-c.x,v:p.z-c.z})}}
+function angleForPoint(p,center,axis){const r=unwrapAxisInfo(axis).radial(p,center);return normAngle(Math.atan2(r.v,r.u))}
+function angleOffset(a,start,reverse=false){return reverse?normAngle(start-a):normAngle(a-start)}
+function selectedModelWorldBox(){if(!selectedModel)return null;selectedModel.root.updateWorldMatrix(true,true);const b=new THREE.Box3().setFromObject(selectedModel.root,true);return b.isEmpty()?null:b}
+function selectedModelCenter(){const b=selectedModelWorldBox();return b?b.getCenter(new THREE.Vector3()):new THREE.Vector3()}
+function updateUnwrapStatus(){const el=$('unwrapStatus');if(!el)return;if(unwrapStartAngle==null||unwrapEndAngle==null)el.textContent=tr('unwrapFullStatus');else el.textContent=`${tr('unwrapStart')}: ${THREE.MathUtils.radToDeg(unwrapStartAngle).toFixed(1)}° · ${tr('unwrapEnd')}: ${THREE.MathUtils.radToDeg(unwrapEndAngle).toFixed(1)}°`;$('unwrapReverseButton')?.classList.toggle('active',unwrapReverse)}
+function beginUnwrapPick(which){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}unwrapPickMode=which;transform.detach();$('unwrapStartButton').classList.toggle('active',which==='start');$('unwrapEndButton').classList.toggle('active',which==='end');setStatus(which==='start'?tr('unwrapPickStart'):tr('unwrapPickEnd'))}
+function finishUnwrapPick(point){if(!selectedModel||!unwrapPickMode)return;const center=selectedModelCenter(),axis=$('unwrapAxis').value,a=angleForPoint(point,center,axis);if(unwrapPickMode==='start'){unwrapStartAngle=a;setStatus(tr('unwrapStartChosen'))}else{unwrapEndAngle=a;setStatus(tr('unwrapEndChosen'))}unwrapPickMode=null;$('unwrapStartButton').classList.remove('active');$('unwrapEndButton').classList.remove('active');updateUnwrapStatus();if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root)}
+function resetUnwrapFull(){unwrapStartAngle=null;unwrapEndAngle=null;unwrapPickMode=null;$('unwrapStartButton').classList.remove('active');$('unwrapEndButton').classList.remove('active');updateUnwrapStatus()}
+function reverseUnwrap(){unwrapReverse=!unwrapReverse;updateUnwrapStatus()}
+function materialForUnwrap(mat){if(!mat)return new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});const m=new THREE.MeshBasicMaterial({map:mat.map||null,color:mat.color?.clone?.()||new THREE.Color(0xffffff),vertexColors:!!mat.vertexColors,transparent:!!mat.transparent,opacity:mat.opacity??1,alphaMap:mat.alphaMap||null,alphaTest:mat.alphaTest||0,side:THREE.DoubleSide});if(m.map)optimiseTextureForDocumentation(m.map);if(m.alphaMap)optimiseTextureForDocumentation(m.alphaMap);return m}
+function materialIndexForTriangle(geometry,triIndex){const vertexIndex=triIndex*3;for(let i=0;i<(geometry.groups||[]).length;i++){const g=geometry.groups[i];if(vertexIndex>=g.start&&vertexIndex<g.start+g.count)return g.materialIndex||0}return 0}
+function buildUnwrappedGroup(){if(!selectedModel)return null;const axis=$('unwrapAxis').value,box=selectedModelWorldBox();if(!box)return null;const center=box.getCenter(new THREE.Vector3()),info=unwrapAxisInfo(axis),full=(unwrapStartAngle==null||unwrapEndAngle==null),start=full?0:unwrapStartAngle;let span=full?Math.PI*2:angleOffset(unwrapEndAngle,start,unwrapReverse);if(span<THREE.MathUtils.degToRad(.5))span=Math.PI*2;const meshes=[];let radiusSum=0,radiusCount=0,axisMin=Infinity,axisMax=-Infinity;selectedModel.root.updateWorldMatrix(true,true);selectedModel.root.traverse(obj=>{if(!obj.isMesh||!obj.geometry?.attributes?.position)return;const geo=obj.geometry.index?obj.geometry.toNonIndexed():obj.geometry.clone(),pos=geo.attributes.position,uv=geo.attributes.uv,col=geo.attributes.color,worldVerts=[];for(let i=0;i<pos.count;i++){const p=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(obj.matrixWorld);worldVerts.push(p);const r=info.radial(p,center);radiusSum+=Math.hypot(r.u,r.v);radiusCount++;const ax=info.axial(p);axisMin=Math.min(axisMin,ax);axisMax=Math.max(axisMax,ax)}meshes.push({obj,geo,worldVerts,uv,col})});if(!meshes.length||!radiusCount)return null;const refRadius=Math.max(radiusSum/radiusCount,1e-6),outGroup=new THREE.Group();let kept=0;for(const item of meshes){const{obj,geo,worldVerts,uv,col}=item,materials=Array.isArray(obj.material)?obj.material:[obj.material],buckets=new Map(),triCount=Math.floor(worldVerts.length/3);for(let t=0;t<triCount;t++){const p0=worldVerts[t*3],p1=worldVerts[t*3+1],p2=worldVerts[t*3+2],centroid=p0.clone().add(p1).add(p2).multiplyScalar(1/3),ca=angleForPoint(centroid,center,axis),co=angleOffset(ca,start,unwrapReverse);if(!full&&co>span)continue;const mi=materialIndexForTriangle(geo,t);if(!buckets.has(mi))buckets.set(mi,{p:[],uv:[],c:[]});const b=buckets.get(mi);for(let k=0;k<3;k++){const vi=t*3+k,p=worldVerts[vi],a=angleForPoint(p,center,axis);let off=angleOffset(a,start,unwrapReverse);while(off-co>Math.PI)off-=Math.PI*2;while(co-off>Math.PI)off+=Math.PI*2;const x=off*refRadius,y=info.axial(p)-axisMin;b.p.push(x,y,0);if(uv)b.uv.push(uv.getX(vi),uv.getY(vi));if(col)b.c.push(col.getX(vi),col.getY(vi),col.getZ(vi))}kept++}for(const[mi,b]of buckets){if(!b.p.length)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));if(b.uv.length)g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));if(b.c.length)g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));outGroup.add(new THREE.Mesh(g,materialForUnwrap(materials[mi]||materials[0])))}}if(!kept)return null;outGroup.userData.unwrapWidth=span*refRadius;outGroup.userData.unwrapHeight=Math.max(axisMax-axisMin,1e-6);return outGroup}
+async function renderUnwrappedGroup(group,outW){const aspect=Math.max(group.userData.unwrapWidth/group.userData.unwrapHeight,.01),outH=Math.max(500,Math.min(50000,Math.round(outW/aspect))),scene2=new THREE.Scene();scene2.background=new THREE.Color(0xffffff);scene2.add(group);const w=group.userData.unwrapWidth,h=group.userData.unwrapHeight,cam=new THREE.OrthographicCamera(0,w,h,0,-100,100);cam.position.set(0,0,10);cam.lookAt(0,0,0);cam.updateProjectionMatrix();const finalCanvas=document.createElement('canvas');finalCanvas.width=outW;finalCanvas.height=outH;const ctx=finalCanvas.getContext('2d');if(!ctx)throw new Error('Kunne ikke oprette eksportlærred.');const oldSize=new THREE.Vector2();renderer.getSize(oldSize);const oldPR=renderer.getPixelRatio(),tileMax=rendererMaxTileSize(),cols=Math.ceil(outW/tileMax),rows=Math.ceil(outH/tileMax);let done=0,total=cols*rows;renderer.setPixelRatio(1);try{const full={left:0,right:w,top:h,bottom:0};for(let row=0;row<rows;row++){for(let col=0;col<cols;col++){const x=col*tileMax,y=row*tileMax,tw=Math.min(tileMax,outW-x),th=Math.min(tileMax,outH-y);renderer.setSize(tw,th,false);setOrthoTile(cam,outW,outH,x,y,tw,th,full);renderer.render(scene2,cam);ctx.drawImage(renderer.domElement,0,0,tw,th,x,y,tw,th);done++;setStatus(`${tr('unwrapWorking')} ${done}/${total}`);await new Promise(r=>setTimeout(r,0))}}return await new Promise((resolve,reject)=>finalCanvas.toBlob(b=>b?resolve(b):reject(new Error('PNG kunne ikke oprettes.')),'image/png'))}finally{renderer.setPixelRatio(oldPR);renderer.setSize(oldSize.x,oldSize.y,false);group.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose()}})}}
+async function exportUnwrappedFrieze(){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}setStatus(tr('unwrapWorking'));try{const group=buildUnwrappedGroup();if(!group){setStatus(tr('unwrapNoGeometry'));return}const outW=Math.max(1000,Math.min(50000,parseInt($('unwrapWidth').value)||12000)),blob=await renderUnwrappedGroup(group,outW),file=new File([blob],`${selectedModel.name.replace(/\.[^.]+$/,'')}-frise.png`,{type:'image/png'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){try{await navigator.share({files:[file],title:'ArchaeoPlan frieze'});setStatus(tr('unwrapDone'));return}catch(err){if(err?.name==='AbortError')return}}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setStatus(tr('unwrapDone'))}catch(err){console.error(err);setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`)}}
 
 // ---------- Plan / underlay ----------
 function updateUnderlayUi(){
@@ -986,7 +1036,12 @@ function updateMeasureLabel(){
   measureLabel.style.transform='translate(-50%,-50%)';
 }
 renderer.domElement.addEventListener('pointerdown',e=>{
-  if(!measureMode||cropMode)return;
+  if(!unwrapPickMode||cropMode)return;
+  e.preventDefault();screenToNdc(e);measureRaycaster.setFromCamera(measurePointer,camera);const roots=[];if(selectedModel?.root?.visible)selectedModel.root.traverse(o=>{if(o.isMesh)roots.push(o)});const hit=measureRaycaster.intersectObjects(roots,false)[0];if(hit)finishUnwrapPick(hit.point);
+},{capture:true});
+
+renderer.domElement.addEventListener('pointerdown',e=>{
+  if(!measureMode||cropMode||unwrapPickMode)return;
   e.preventDefault();
   screenToNdc(e);
   measureRaycaster.setFromCamera(measurePointer,camera);
@@ -1108,48 +1163,162 @@ async function drawAnnotationsOnBlob(blob,outW,outH){
   return await new Promise(resolve=>c.toBlob(resolve,'image/png'));
 }
 
-async function renderExportBlob(){
-  const __underlayWasVisible=underlay?underlay.visible:null;
-  if(underlay&&underlay.userData.includeInExport===false)underlay.visible=false;
 
-  const outW=Math.max(200,Math.min(12000,parseInt($('exportWidth').value)||3000));
-  const outH=Math.max(200,Math.min(12000,parseInt($('exportHeight').value)||2000));
-  const frame=exportFrameRect();
+function rendererMaxTileSize(){
+  const gl=renderer.getContext();
+  const maxRb=gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)||4096;
+  const maxTex=gl.getParameter(gl.MAX_TEXTURE_SIZE)||4096;
+  // Stay below the GPU ceiling for Safari/iPad stability.
+  return Math.max(1024,Math.min(maxRb,maxTex,4096));
+}
+
+function setPerspectiveTile(camera,fullW,fullH,x,y,w,h){
+  // Full-frame perspective frustum, then crop to this tile.
+  const near=camera.near;
+  const top=near*Math.tan(THREE.MathUtils.degToRad(camera.fov)*0.5)/camera.zoom;
+  const height=2*top;
+  const width=camera.aspect*height;
+  const left=-0.5*width;
+
+  const x0=x/fullW, x1=(x+w)/fullW;
+  const y0=y/fullH, y1=(y+h)/fullH;
+
+  const tileLeft=left + width*x0;
+  const tileRight=left + width*x1;
+  const tileTop=top - height*y0;
+  const tileBottom=top - height*y1;
+
+  camera.projectionMatrix.makePerspective(tileLeft,tileRight,tileTop,tileBottom,near,camera.far,renderer.coordinateSystem);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+}
+
+function setOrthoTile(camera,fullW,fullH,x,y,w,h,fullBounds){
+  const {left,right,top,bottom}=fullBounds;
+  const width=right-left, height=top-bottom;
+
+  const x0=x/fullW, x1=(x+w)/fullW;
+  const y0=y/fullH, y1=(y+h)/fullH;
+
+  camera.left=left+width*x0;
+  camera.right=left+width*x1;
+  camera.top=top-height*y0;
+  camera.bottom=top-height*y1;
+  camera.updateProjectionMatrix();
+}
+
+async function renderExportBlob(){
+  // Respect exactly what the user typed. Keep only a practical hard ceiling
+  // to avoid impossible multi-gigabyte canvases on mobile browsers.
+  const outW=Math.max(200,Math.min(50000,parseInt($('exportWidth').value)||3000));
+  const outH=Math.max(200,Math.min(50000,parseInt($('exportHeight').value)||2000));
+
+  const finalCanvas=document.createElement('canvas');
+  finalCanvas.width=outW;
+  finalCanvas.height=outH;
+  const ctx=finalCanvas.getContext('2d',{alpha:true});
+  if(!ctx)throw new Error('Kunne ikke oprette eksportlærred.');
 
   const oldSize=new THREE.Vector2();renderer.getSize(oldSize);
   const oldPR=renderer.getPixelRatio();
   const oldAspect=perspectiveCamera.aspect;
-  const oldOrtho={l:orthographicCamera.left,r:orthographicCamera.right,t:orthographicCamera.top,b:orthographicCamera.bottom};
+  const oldPerspProjection=perspectiveCamera.projectionMatrix.clone();
+  const oldPerspInverse=perspectiveCamera.projectionMatrixInverse.clone();
+  const oldOrtho={
+    left:orthographicCamera.left,right:orthographicCamera.right,
+    top:orthographicCamera.top,bottom:orthographicCamera.bottom,
+    zoom:orthographicCamera.zoom
+  };
+  const __underlayWasVisible=underlay?underlay.visible:null;
+  if(underlay&&underlay.userData.includeInExport===false)underlay.visible=false;
 
-  // Match output aspect to export frame without changing camera target.
-  renderer.setPixelRatio(1);
-  renderer.setSize(outW,outH,false);
+  try{
+    renderer.setPixelRatio(1);
 
-  const ratio=outW/outH;
-  if(camera.isPerspectiveCamera){
-    perspectiveCamera.aspect=ratio;
-  }else{
-    const cy=(camera.top+camera.bottom)/2;
-    const hh=(camera.top-camera.bottom)/2;
-    const cx=(camera.left+camera.right)/2;
-    const hw=hh*ratio;
-    camera.left=cx-hw;camera.right=cx+hw;camera.top=cy+hh;camera.bottom=cy-hh;
+    const tileMax=rendererMaxTileSize();
+    const cols=Math.ceil(outW/tileMax);
+    const rows=Math.ceil(outH/tileMax);
+    const total=cols*rows;
+    let done=0;
+
+    // Establish the full-frame camera once.
+    if(camera.isPerspectiveCamera){
+      perspectiveCamera.aspect=outW/outH;
+      perspectiveCamera.updateProjectionMatrix();
+    }else{
+      const cy=(camera.top+camera.bottom)/2;
+      const hh=((camera.top-camera.bottom)/2)/Math.max(camera.zoom,1e-9);
+      const cx=(camera.left+camera.right)/2;
+      const hw=hh*(outW/outH);
+      orthographicCamera.left=cx-hw;
+      orthographicCamera.right=cx+hw;
+      orthographicCamera.top=cy+hh;
+      orthographicCamera.bottom=cy-hh;
+      orthographicCamera.zoom=1;
+      orthographicCamera.updateProjectionMatrix();
+    }
+
+    const fullOrtho=camera.isOrthographicCamera ? {
+      left:camera.left,right:camera.right,top:camera.top,bottom:camera.bottom
+    } : null;
+
+    for(let row=0;row<rows;row++){
+      for(let col=0;col<cols;col++){
+        const x=col*tileMax;
+        const y=row*tileMax;
+        const w=Math.min(tileMax,outW-x);
+        const h=Math.min(tileMax,outH-y);
+
+        renderer.setSize(w,h,false);
+
+        if(camera.isPerspectiveCamera){
+          setPerspectiveTile(camera,outW,outH,x,y,w,h);
+        }else{
+          setOrthoTile(camera,outW,outH,x,y,w,h,fullOrtho);
+        }
+
+        renderer.render(scene,camera);
+
+        // Copy the current WebGL tile into the final 2D canvas.
+        ctx.drawImage(renderer.domElement,0,0,w,h,x,y,w,h);
+
+        done++;
+        setStatus(`Eksporterer høj opløsning: ${done}/${total} fliser…`);
+
+        // Yield to Safari/iPad between tiles to reduce memory pressure.
+        await new Promise(r=>setTimeout(r,0));
+      }
+    }
+
+    const blob=await new Promise((resolve,reject)=>{
+      finalCanvas.toBlob(b=>b?resolve(b):reject(new Error('PNG kunne ikke oprettes.')),'image/png');
+    });
+
+    if(underlay&&__underlayWasVisible!==null)underlay.visible=__underlayWasVisible;
+
+    // Annotations are drawn after the full-resolution image is assembled.
+    return await drawAnnotationsOnBlob(blob,outW,outH);
+
+  }finally{
+    renderer.setPixelRatio(oldPR);
+    renderer.setSize(oldSize.x,oldSize.y,false);
+
+    perspectiveCamera.aspect=oldAspect;
+    perspectiveCamera.projectionMatrix.copy(oldPerspProjection);
+    perspectiveCamera.projectionMatrixInverse.copy(oldPerspInverse);
+    perspectiveCamera.updateProjectionMatrix();
+
+    orthographicCamera.left=oldOrtho.left;
+    orthographicCamera.right=oldOrtho.right;
+    orthographicCamera.top=oldOrtho.top;
+    orthographicCamera.bottom=oldOrtho.bottom;
+    orthographicCamera.zoom=oldOrtho.zoom;
+    orthographicCamera.updateProjectionMatrix();
+
+    if(underlay&&__underlayWasVisible!==null)underlay.visible=__underlayWasVisible;
+    orbit.update();
   }
-  camera.updateProjectionMatrix();
-
-  const gridWasVisible=grid.visible;
-  renderer.render(scene,camera);
-
-  const blob=await new Promise(resolve=>renderer.domElement.toBlob(resolve,'image/png'));
-
-  renderer.setPixelRatio(oldPR);
-  renderer.setSize(oldSize.x,oldSize.y,false);
-  perspectiveCamera.aspect=oldAspect;
-  Object.assign(orthographicCamera,{left:oldOrtho.l,right:oldOrtho.r,top:oldOrtho.t,bottom:oldOrtho.b});
-  camera.updateProjectionMatrix();
-  if(underlay&&__underlayWasVisible!==null)underlay.visible=__underlayWasVisible;
-  return await drawAnnotationsOnBlob(blob,outW,outH);
 }
+
 async function savePng(){
   const blob=await renderExportBlob();
   if(!blob)return;
@@ -1215,7 +1384,8 @@ function currentProjectSettings(){
       northPosition:$('northPosition').value
     },
     measurement:measurePoints.map(p=>p.toArray()),
-    underlay:underlayMetadata()
+    underlay:underlayMetadata(),
+    unwrap:{axis:$('unwrapAxis').value,width:$('unwrapWidth').value,start:unwrapStartAngle,end:unwrapEndAngle,reverse:unwrapReverse}
   };
 }
 function modelMetadata(m,index){
@@ -1243,7 +1413,7 @@ function exportRootAsGlb(root){
       clone,
       result=>resolve(result),
       error=>reject(error),
-      {binary:true,onlyVisible:false,maxTextureSize:4096}
+      {binary:true,onlyVisible:false}
     );
   });
 }
@@ -1392,6 +1562,7 @@ async function restoreProjectSettings(settings){
   if(settings.currentView)applyViewState(settings.currentView);
 
   if(settings.underlay)await restoreUnderlay(settings.underlay);else updateUnderlayUi();
+  if(settings.unwrap){$('unwrapAxis').value=settings.unwrap.axis||'y';$('unwrapWidth').value=settings.unwrap.width||'12000';unwrapStartAngle=Number.isFinite(settings.unwrap.start)?settings.unwrap.start:null;unwrapEndAngle=Number.isFinite(settings.unwrap.end)?settings.unwrap.end:null;unwrapReverse=!!settings.unwrap.reverse;updateUnwrapStatus();}
 
   const selectedIndex=Number.isInteger(settings.selectedIndex)?settings.selectedIndex:-1;
   selectModel(selectedIndex>=0&&selectedIndex<models.length?models[selectedIndex]:(models[0]||null));
@@ -1504,6 +1675,13 @@ function redo(){
 }
 
 
+$('unwrapStartButton').onclick=()=>beginUnwrapPick('start');
+$('unwrapEndButton').onclick=()=>beginUnwrapPick('end');
+$('unwrapFullButton').onclick=resetUnwrapFull;
+$('unwrapReverseButton').onclick=reverseUnwrap;
+$('unwrapExportButton').onclick=exportUnwrappedFrieze;
+$('unwrapAxis').onchange=()=>{unwrapStartAngle=null;unwrapEndAngle=null;updateUnwrapStatus();};
+
 $('loadUnderlayButton').onclick=()=>underlayInput.click();
 underlayInput.onchange=e=>loadUnderlayFile(e.target.files?.[0]);
 $('removeUnderlayButton').onclick=removeUnderlay;
@@ -1556,7 +1734,7 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 ['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend'].forEach(n=>cropInputLayer.addEventListener(n,e=>{if(cropMode){e.preventDefault();e.stopPropagation()}},{passive:false,capture:true}));
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
-window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();
+window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();updateUnwrapStatus();
 applyLanguage(currentLanguage);
 setStatus(tr('ready',{version:VERSION}));
 (function animate(){requestAnimationFrame(animate);orbit.update();updateMeasureLabel();renderer.render(scene,camera)})();

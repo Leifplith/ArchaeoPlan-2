@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.17</title>
-  <link rel="stylesheet" href="style.css?v=0.2.17">
+  <title>ArchaeoPlan v0.2.19</title>
+  <link rel="stylesheet" href="style.css?v=0.2.19">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.17</span>
+      <span class="version">v0.2.19</span>
     </div>
     <div class="header-actions">
 
@@ -203,6 +203,20 @@
 
 
     <section class="about">
+
+    <section>
+      <h2 id="unwrapHeading">Friseudrulning</h2>
+      <p id="unwrapHelp" class="muted small">Til cylindriske eller næsten cylindriske genstande. Vælg aksen gennem genstanden, og markér start og slut direkte på modellen.</p>
+      <div class="field-grid two">
+        <label>Akse<select id="unwrapAxis"><option value="y">Y</option><option value="x">X</option><option value="z">Z</option></select></label>
+        <label>Bredde<input id="unwrapWidth" type="number" value="12000" min="1000" max="50000" step="500"></label>
+      </div>
+      <div class="button-grid two"><button id="unwrapStartButton">Vælg start</button><button id="unwrapEndButton">Vælg slut</button></div>
+      <div class="button-grid two"><button id="unwrapFullButton">Hele omkredsen</button><button id="unwrapReverseButton">Vend retning</button></div>
+      <button id="unwrapExportButton" class="primary">Eksportér udfoldet frise</button>
+      <p id="unwrapStatus" class="muted small">Start/slut er ikke valgt. Hele omkredsen bruges.</p>
+    </section>
+
       <h2 id="docsHeading">Dokumentationsvisning</h2>
       <p id="docsText">GLB- og OBJ-teksturer bevares. ArchaeoPlan ændrer ikke de originale teksturfiler.</p>
     </section>
@@ -222,7 +236,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.17 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.18 klar.</div>
   </main>
 </div>
 
@@ -234,7 +248,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.17"></script>
+<script type="module" src="app.js?v=0.2.19"></script>
 
 <dialog id="projectSaveDialog" class="project-save-dialog">
   <div class="dialog-card">

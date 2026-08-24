@@ -156,3 +156,6 @@ select {
 /* v0.2.17 */
 .button-grid.three{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px}
 #underlayLockButton{font-size:16px}
+
+/* v0.2.19 */
+#unwrapStartButton.active,#unwrapEndButton.active,#unwrapReverseButton.active{background:var(--accent-soft);border-color:var(--accent)}
