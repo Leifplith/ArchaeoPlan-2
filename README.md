@@ -109,3 +109,19 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Funktionen ændrer ikke original model eller tekstur.
 - Indstillingerne gemmes i `.archaeoplan`-projektet.
 - Denne version er beregnet til cylindriske eller næsten cylindriske former.
+
+## v0.2.20 — friseeksport på iPad
+- Frisen renderes først helt færdig.
+- Derefter vises en dialog med et nyt fysisk brugertryk.
+- **Gem PNG** gemmer som almindelig fil.
+- **Del / Gem til Fotos** åbner iOS-delearket, så Safari ikke mister brugeraktiveringen under den lange renderproces.
+- Selve friseudrulningen er ellers uændret fra v0.2.19.
+
+## v0.2.21 — Udfold overflade
+- Reliefdybde bevares ved udfoldning.
+- Området kan afgrænses før udfoldning med frihånd på modellen.
+- Originalmodellen ændres ikke.
+- Hele udfoldningen vises først i preview.
+- Øvre og nedre kant på eksportbånd kan trækkes.
+- Valgt bånd eller hele udfoldningen kan eksporteres.
+- Originale UV-koordinater og teksturer bevares; højopløsnings-eksport er fortsat flisebaseret.

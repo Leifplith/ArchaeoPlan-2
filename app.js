@@ -11,9 +11,9 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.20';
+const VERSION='0.2.21';
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog');
+const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
 const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
@@ -82,6 +82,7 @@ let savedViews=[];
 let preparedProject=null;
 let underlay=null,underlayImageData=null,underlaySelected=false;
 let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false,preparedFrieze=null;
+let unwrapAreaMode=false,unwrapAreaPoints=[],unwrapBandTop=0,unwrapBandBottom=1,unwrapPreviewUrl=null;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -90,6 +91,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  unwrapSurface:'Udfold overflade', unwrapSelectArea:'Vælg område', unwrapClearArea:'Ryd område', unwrapPreview:'Lav udfoldning', unwrapWholeHeight:'Hele omkredsen og hele højden bruges.', unwrapPreviewHeading:'Forhåndsvisning af udfoldning', unwrapPreviewHelp:'Træk den øverste og nederste kant for at vælge eksportbåndet.', unwrapBandAll:'Bånd: hele højden', unwrapExportBand:'Eksportér valgt bånd', unwrapExportFull:'Eksportér hele udfoldningen', unwrapAreaActive:'Tegn området direkte på modellen.', unwrapAreaChosen:'Område valgt til udfoldning.', unwrapAreaCleared:'Afgrænsning ryddet.',
+
   friezeReady:'Frisen er klar', friezeReadyText:'Vælg hvordan det udfoldede billede skal gemmes.', friezeSavePng:'Gem PNG', friezeShare:'Del / Gem til Fotos', friezeClose:'Luk', friezePrepared:'Frisen er klar til at blive gemt.',
 
   unwrap:'Friseudrulning', unwrapHelp:'Til cylindriske eller næsten cylindriske genstande. Vælg aksen gennem genstanden, og markér start og slut direkte på modellen.', unwrapAxis:'Akse', unwrapWidth:'Bredde', unwrapStart:'Vælg start', unwrapEnd:'Vælg slut', unwrapFull:'Hele omkredsen', unwrapReverse:'Vend retning', unwrapExport:'Eksportér udfoldet frise', unwrapFullStatus:'Start/slut er ikke valgt. Hele omkredsen bruges.', unwrapStartChosen:'Startpunkt valgt. Vælg nu slutpunkt.', unwrapEndChosen:'Slutpunkt valgt.', unwrapPickStart:'Tryk på modellen for at vælge frisenes start.', unwrapPickEnd:'Tryk på modellen for at vælge frisenes slut.', unwrapNeedModel:'Vælg først en model.', unwrapWorking:'Ruller frisen ud…', unwrapDone:'Udfoldet frise eksporteret.', unwrapNoGeometry:'Der blev ikke fundet egnet geometri i det valgte område.',
@@ -145,6 +148,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  unwrapSurface:'Oberfläche abwickeln', unwrapSelectArea:'Bereich wählen', unwrapClearArea:'Bereich löschen', unwrapPreview:'Abwicklung erstellen', unwrapWholeHeight:'Gesamter Umfang und gesamte Höhe werden verwendet.', unwrapPreviewHeading:'Vorschau der Abwicklung', unwrapPreviewHelp:'Obere und untere Kante ziehen, um den Exportstreifen zu wählen.', unwrapBandAll:'Streifen: gesamte Höhe', unwrapExportBand:'Gewählten Streifen exportieren', unwrapExportFull:'Gesamte Abwicklung exportieren', unwrapAreaActive:'Bereich direkt auf dem Modell zeichnen.', unwrapAreaChosen:'Bereich für die Abwicklung gewählt.', unwrapAreaCleared:'Abgrenzung gelöscht.',
+
   friezeReady:'Der Fries ist fertig', friezeReadyText:'Wählen Sie, wie das abgewickelte Bild gespeichert werden soll.', friezeSavePng:'PNG speichern', friezeShare:'Teilen / In Fotos sichern', friezeClose:'Schließen', friezePrepared:'Der Fries kann jetzt gespeichert werden.',
 
   unwrap:'Fries abwickeln', unwrapHelp:'Für zylindrische oder annähernd zylindrische Objekte. Achse wählen und Start und Ende direkt am Modell markieren.', unwrapAxis:'Achse', unwrapWidth:'Breite', unwrapStart:'Start wählen', unwrapEnd:'Ende wählen', unwrapFull:'Gesamter Umfang', unwrapReverse:'Richtung umkehren', unwrapExport:'Abgewickelten Fries exportieren', unwrapFullStatus:'Start/Ende nicht gewählt. Der gesamte Umfang wird verwendet.', unwrapStartChosen:'Startpunkt gewählt. Jetzt Endpunkt wählen.', unwrapEndChosen:'Endpunkt gewählt.', unwrapPickStart:'Auf das Modell tippen, um den Start des Frieses zu wählen.', unwrapPickEnd:'Auf das Modell tippen, um das Ende des Frieses zu wählen.', unwrapNeedModel:'Bitte zuerst ein Modell wählen.', unwrapWorking:'Fries wird abgewickelt…', unwrapDone:'Abgewickelter Fries exportiert.', unwrapNoGeometry:'Im gewählten Bereich wurde keine geeignete Geometrie gefunden.',
@@ -197,6 +202,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  unwrapSurface:'Unwrap surface', unwrapSelectArea:'Select area', unwrapClearArea:'Clear area', unwrapPreview:'Create unwrap', unwrapWholeHeight:'Full circumference and full height will be used.', unwrapPreviewHeading:'Unwrap preview', unwrapPreviewHelp:'Drag the upper and lower edges to choose the export band.', unwrapBandAll:'Band: full height', unwrapExportBand:'Export selected band', unwrapExportFull:'Export full unwrap', unwrapAreaActive:'Draw the area directly on the model.', unwrapAreaChosen:'Area selected for unwrap.', unwrapAreaCleared:'Area selection cleared.',
+
   friezeReady:'Frieze is ready', friezeReadyText:'Choose how to save the unwrapped image.', friezeSavePng:'Save PNG', friezeShare:'Share / Save to Photos', friezeClose:'Close', friezePrepared:'The frieze is ready to save.',
 
   unwrap:'Frieze unwrap', unwrapHelp:'For cylindrical or near-cylindrical objects. Choose the object axis, then mark start and end directly on the model.', unwrapAxis:'Axis', unwrapWidth:'Width', unwrapStart:'Choose start', unwrapEnd:'Choose end', unwrapFull:'Full circumference', unwrapReverse:'Reverse direction', unwrapExport:'Export unwrapped frieze', unwrapFullStatus:'Start/end not selected. Full circumference will be used.', unwrapStartChosen:'Start point selected. Now choose the end point.', unwrapEndChosen:'End point selected.', unwrapPickStart:'Tap the model to choose the frieze start.', unwrapPickEnd:'Tap the model to choose the frieze end.', unwrapNeedModel:'Select a model first.', unwrapWorking:'Unwrapping frieze…', unwrapDone:'Unwrapped frieze exported.', unwrapNoGeometry:'No suitable geometry was found in the selected area.',
@@ -249,6 +256,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  unwrapSurface:'Dérouler la surface', unwrapSelectArea:'Choisir une zone', unwrapClearArea:'Effacer la zone', unwrapPreview:'Créer le déroulé', unwrapWholeHeight:'Toute la circonférence et toute la hauteur seront utilisées.', unwrapPreviewHeading:'Aperçu du déroulé', unwrapPreviewHelp:'Faites glisser les bords supérieur et inférieur pour choisir la bande à exporter.', unwrapBandAll:'Bande : toute la hauteur', unwrapExportBand:'Exporter la bande sélectionnée', unwrapExportFull:'Exporter tout le déroulé', unwrapAreaActive:'Dessinez la zone directement sur le modèle.', unwrapAreaChosen:'Zone choisie pour le déroulé.', unwrapAreaCleared:'Sélection de zone effacée.',
+
   friezeReady:'La frise est prête', friezeReadyText:'Choisissez comment enregistrer l’image déroulée.', friezeSavePng:'Enregistrer PNG', friezeShare:'Partager / Enregistrer dans Photos', friezeClose:'Fermer', friezePrepared:'La frise est prête à être enregistrée.',
 
   unwrap:'Dérouler la frise', unwrapHelp:'Pour les objets cylindriques ou presque cylindriques. Choisissez l’axe, puis marquez le début et la fin directement sur le modèle.', unwrapAxis:'Axe', unwrapWidth:'Largeur', unwrapStart:'Choisir le début', unwrapEnd:'Choisir la fin', unwrapFull:'Circonférence complète', unwrapReverse:'Inverser le sens', unwrapExport:'Exporter la frise déroulée', unwrapFullStatus:'Début/fin non choisis. Toute la circonférence sera utilisée.', unwrapStartChosen:'Point de départ choisi. Choisissez maintenant la fin.', unwrapEndChosen:'Point de fin choisi.', unwrapPickStart:'Touchez le modèle pour choisir le début de la frise.', unwrapPickEnd:'Touchez le modèle pour choisir la fin de la frise.', unwrapNeedModel:'Sélectionnez d’abord un modèle.', unwrapWorking:'Déroulement de la frise…', unwrapDone:'Frise déroulée exportée.', unwrapNoGeometry:'Aucune géométrie appropriée n’a été trouvée dans la zone choisie.',
@@ -373,7 +382,9 @@ function applyLanguage(lang){
   });
   setCheckText('showNorthArrow','showNorth');setLabelPrefix('northAngle','rotationDeg');setLabelPrefix('northPosition','position');
   setText('scaleNorthNote','scaleNorthNote');setText('exportNote','exportNote');
-  setText('unwrapHeading','unwrap');setText('unwrapHelp','unwrapHelp');setLabelPrefix('unwrapAxis','unwrapAxis');setLabelPrefix('unwrapWidth','unwrapWidth');setText('unwrapStartButton','unwrapStart');setText('unwrapEndButton','unwrapEnd');setText('unwrapFullButton','unwrapFull');setText('unwrapReverseButton','unwrapReverse');setText('unwrapExportButton','unwrapExport');updateUnwrapStatus();
+  setText('unwrapHeading','unwrapSurface');setText('unwrapHelp','unwrapHelp');setLabelPrefix('unwrapAxis','unwrapAxis');setLabelPrefix('unwrapWidth','unwrapWidth');setText('unwrapStartButton','unwrapStart');setText('unwrapEndButton','unwrapEnd');
+  setText('unwrapSelectAreaButton','unwrapSelectArea');setText('unwrapClearAreaButton','unwrapClearArea');setText('unwrapPreviewButton','unwrapPreview');setText('unwrapFullButton','unwrapFull');setText('unwrapReverseButton','unwrapReverse');setText('unwrapExportButton','unwrapExport');updateUnwrapStatus();
+  setText('unwrapPreviewHeading','unwrapPreviewHeading');setText('unwrapPreviewHelp','unwrapPreviewHelp');setText('unwrapExportBandButton','unwrapExportBand');setText('unwrapExportFullButton','unwrapExportFull');
   setText('friezeReadyHeading','friezeReady');setText('friezeReadyText','friezeReadyText');
   setText('saveFriezePngButton','friezeSavePng');setText('shareFriezeButton','friezeShare');setText('cancelFriezeSaveButton','friezeClose');
   setText('docsHeading','docs');setText('docsText','docsText');setText('dropStrong','drop');setText('dropText','dropText');
@@ -432,73 +443,65 @@ function prepareDocumentationMaterials(root){
 
 
 
-// ---------- Cylindrical frieze unwrap ----------
+
+// ---------- Cylindrical surface unwrap ----------
 function normAngle(a){const t=Math.PI*2;return((a%t)+t)%t}
 function unwrapAxisInfo(axis){if(axis==='x')return{axial:p=>p.x,radial:(p,c)=>({u:p.z-c.z,v:p.y-c.y})};if(axis==='z')return{axial:p=>p.z,radial:(p,c)=>({u:p.x-c.x,v:p.y-c.y})};return{axial:p=>p.y,radial:(p,c)=>({u:p.x-c.x,v:p.z-c.z})}}
 function angleForPoint(p,center,axis){const r=unwrapAxisInfo(axis).radial(p,center);return normAngle(Math.atan2(r.v,r.u))}
 function angleOffset(a,start,reverse=false){return reverse?normAngle(start-a):normAngle(a-start)}
 function selectedModelWorldBox(){if(!selectedModel)return null;selectedModel.root.updateWorldMatrix(true,true);const b=new THREE.Box3().setFromObject(selectedModel.root,true);return b.isEmpty()?null:b}
 function selectedModelCenter(){const b=selectedModelWorldBox();return b?b.getCenter(new THREE.Vector3()):new THREE.Vector3()}
-function updateUnwrapStatus(){const el=$('unwrapStatus');if(!el)return;if(unwrapStartAngle==null||unwrapEndAngle==null)el.textContent=tr('unwrapFullStatus');else el.textContent=`${tr('unwrapStart')}: ${THREE.MathUtils.radToDeg(unwrapStartAngle).toFixed(1)}° · ${tr('unwrapEnd')}: ${THREE.MathUtils.radToDeg(unwrapEndAngle).toFixed(1)}°`;$('unwrapReverseButton')?.classList.toggle('active',unwrapReverse)}
+function updateUnwrapStatus(){const el=$('unwrapStatus');if(!el)return;if(unwrapStartAngle==null||unwrapEndAngle==null)el.textContent=tr('unwrapWholeHeight');else el.textContent=`${tr('unwrapStart')}: ${THREE.MathUtils.radToDeg(unwrapStartAngle).toFixed(1)}° · ${tr('unwrapEnd')}: ${THREE.MathUtils.radToDeg(unwrapEndAngle).toFixed(1)}°`;$('unwrapReverseButton')?.classList.toggle('active',unwrapReverse)}
 function beginUnwrapPick(which){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}unwrapPickMode=which;transform.detach();$('unwrapStartButton').classList.toggle('active',which==='start');$('unwrapEndButton').classList.toggle('active',which==='end');setStatus(which==='start'?tr('unwrapPickStart'):tr('unwrapPickEnd'))}
-function finishUnwrapPick(point){if(!selectedModel||!unwrapPickMode)return;const center=selectedModelCenter(),axis=$('unwrapAxis').value,a=angleForPoint(point,center,axis);if(unwrapPickMode==='start'){unwrapStartAngle=a;setStatus(tr('unwrapStartChosen'))}else{unwrapEndAngle=a;setStatus(tr('unwrapEndChosen'))}unwrapPickMode=null;$('unwrapStartButton').classList.remove('active');$('unwrapEndButton').classList.remove('active');updateUnwrapStatus();if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root)}
-function resetUnwrapFull(){unwrapStartAngle=null;unwrapEndAngle=null;unwrapPickMode=null;$('unwrapStartButton').classList.remove('active');$('unwrapEndButton').classList.remove('active');updateUnwrapStatus()}
+function finishUnwrapPick(point){if(!selectedModel||!unwrapPickMode)return;const a=angleForPoint(point,selectedModelCenter(),$('unwrapAxis').value);if(unwrapPickMode==='start'){unwrapStartAngle=a;setStatus(tr('unwrapStartChosen'))}else{unwrapEndAngle=a;setStatus(tr('unwrapEndChosen'))}unwrapPickMode=null;$('unwrapStartButton').classList.remove('active');$('unwrapEndButton').classList.remove('active');updateUnwrapStatus();if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root)}
+function resetUnwrapFull(){unwrapStartAngle=null;unwrapEndAngle=null;unwrapPickMode=null;updateUnwrapStatus()}
 function reverseUnwrap(){unwrapReverse=!unwrapReverse;updateUnwrapStatus()}
-function materialForUnwrap(mat){if(!mat)return new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});const m=new THREE.MeshBasicMaterial({map:mat.map||null,color:mat.color?.clone?.()||new THREE.Color(0xffffff),vertexColors:!!mat.vertexColors,transparent:!!mat.transparent,opacity:mat.opacity??1,alphaMap:mat.alphaMap||null,alphaTest:mat.alphaTest||0,side:THREE.DoubleSide});if(m.map)optimiseTextureForDocumentation(m.map);if(m.alphaMap)optimiseTextureForDocumentation(m.alphaMap);return m}
-function materialIndexForTriangle(geometry,triIndex){const vertexIndex=triIndex*3;for(let i=0;i<(geometry.groups||[]).length;i++){const g=geometry.groups[i];if(vertexIndex>=g.start&&vertexIndex<g.start+g.count)return g.materialIndex||0}return 0}
-function buildUnwrappedGroup(){if(!selectedModel)return null;const axis=$('unwrapAxis').value,box=selectedModelWorldBox();if(!box)return null;const center=box.getCenter(new THREE.Vector3()),info=unwrapAxisInfo(axis),full=(unwrapStartAngle==null||unwrapEndAngle==null),start=full?0:unwrapStartAngle;let span=full?Math.PI*2:angleOffset(unwrapEndAngle,start,unwrapReverse);if(span<THREE.MathUtils.degToRad(.5))span=Math.PI*2;const meshes=[];let radiusSum=0,radiusCount=0,axisMin=Infinity,axisMax=-Infinity;selectedModel.root.updateWorldMatrix(true,true);selectedModel.root.traverse(obj=>{if(!obj.isMesh||!obj.geometry?.attributes?.position)return;const geo=obj.geometry.index?obj.geometry.toNonIndexed():obj.geometry.clone(),pos=geo.attributes.position,uv=geo.attributes.uv,col=geo.attributes.color,worldVerts=[];for(let i=0;i<pos.count;i++){const p=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(obj.matrixWorld);worldVerts.push(p);const r=info.radial(p,center);radiusSum+=Math.hypot(r.u,r.v);radiusCount++;const ax=info.axial(p);axisMin=Math.min(axisMin,ax);axisMax=Math.max(axisMax,ax)}meshes.push({obj,geo,worldVerts,uv,col})});if(!meshes.length||!radiusCount)return null;const refRadius=Math.max(radiusSum/radiusCount,1e-6),outGroup=new THREE.Group();let kept=0;for(const item of meshes){const{obj,geo,worldVerts,uv,col}=item,materials=Array.isArray(obj.material)?obj.material:[obj.material],buckets=new Map(),triCount=Math.floor(worldVerts.length/3);for(let t=0;t<triCount;t++){const p0=worldVerts[t*3],p1=worldVerts[t*3+1],p2=worldVerts[t*3+2],centroid=p0.clone().add(p1).add(p2).multiplyScalar(1/3),ca=angleForPoint(centroid,center,axis),co=angleOffset(ca,start,unwrapReverse);if(!full&&co>span)continue;const mi=materialIndexForTriangle(geo,t);if(!buckets.has(mi))buckets.set(mi,{p:[],uv:[],c:[]});const b=buckets.get(mi);for(let k=0;k<3;k++){const vi=t*3+k,p=worldVerts[vi],a=angleForPoint(p,center,axis);let off=angleOffset(a,start,unwrapReverse);while(off-co>Math.PI)off-=Math.PI*2;while(co-off>Math.PI)off+=Math.PI*2;const x=off*refRadius,y=info.axial(p)-axisMin;b.p.push(x,y,0);if(uv)b.uv.push(uv.getX(vi),uv.getY(vi));if(col)b.c.push(col.getX(vi),col.getY(vi),col.getZ(vi))}kept++}for(const[mi,b]of buckets){if(!b.p.length)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));if(b.uv.length)g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));if(b.c.length)g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));outGroup.add(new THREE.Mesh(g,materialForUnwrap(materials[mi]||materials[0])))}}if(!kept)return null;outGroup.userData.unwrapWidth=span*refRadius;outGroup.userData.unwrapHeight=Math.max(axisMax-axisMin,1e-6);return outGroup}
-async function renderUnwrappedGroup(group,outW){const aspect=Math.max(group.userData.unwrapWidth/group.userData.unwrapHeight,.01),outH=Math.max(500,Math.min(50000,Math.round(outW/aspect))),scene2=new THREE.Scene();scene2.background=new THREE.Color(0xffffff);scene2.add(group);const w=group.userData.unwrapWidth,h=group.userData.unwrapHeight,cam=new THREE.OrthographicCamera(0,w,h,0,-100,100);cam.position.set(0,0,10);cam.lookAt(0,0,0);cam.updateProjectionMatrix();const finalCanvas=document.createElement('canvas');finalCanvas.width=outW;finalCanvas.height=outH;const ctx=finalCanvas.getContext('2d');if(!ctx)throw new Error('Kunne ikke oprette eksportlærred.');const oldSize=new THREE.Vector2();renderer.getSize(oldSize);const oldPR=renderer.getPixelRatio(),tileMax=rendererMaxTileSize(),cols=Math.ceil(outW/tileMax),rows=Math.ceil(outH/tileMax);let done=0,total=cols*rows;renderer.setPixelRatio(1);try{const full={left:0,right:w,top:h,bottom:0};for(let row=0;row<rows;row++){for(let col=0;col<cols;col++){const x=col*tileMax,y=row*tileMax,tw=Math.min(tileMax,outW-x),th=Math.min(tileMax,outH-y);renderer.setSize(tw,th,false);setOrthoTile(cam,outW,outH,x,y,tw,th,full);renderer.render(scene2,cam);ctx.drawImage(renderer.domElement,0,0,tw,th,x,y,tw,th);done++;setStatus(`${tr('unwrapWorking')} ${done}/${total}`);await new Promise(r=>setTimeout(r,0))}}return await new Promise((resolve,reject)=>finalCanvas.toBlob(b=>b?resolve(b):reject(new Error('PNG kunne ikke oprettes.')),'image/png'))}finally{renderer.setPixelRatio(oldPR);renderer.setSize(oldSize.x,oldSize.y,false);group.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose()}})}}
-async function exportUnwrappedFrieze(){
-  if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}
-  setStatus(tr('unwrapWorking'));
-  try{
-    const group=buildUnwrappedGroup();
-    if(!group){setStatus(tr('unwrapNoGeometry'));return}
-    const outW=Math.max(1000,Math.min(50000,parseInt($('unwrapWidth').value)||12000));
-    const blob=await renderUnwrappedGroup(group,outW);
-    const filename=`${selectedModel.name.replace(/\.[^.]+$/,'')}-frise.png`;
-    preparedFrieze={blob,filename};
-    if(friezeSaveDialog?.showModal)friezeSaveDialog.showModal();
-    setStatus(tr('friezePrepared'));
-  }catch(err){
-    console.error(err);
-    setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`);
-  }
-}
-
-function downloadPreparedFrieze(){
-  if(!preparedFrieze)return;
-  const {blob,filename}=preparedFrieze;
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=filename;
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
-  friezeSaveDialog?.close();
-  preparedFrieze=null;
-  setStatus(tr('unwrapDone'));
-}
-
-async function sharePreparedFrieze(){
-  if(!preparedFrieze)return;
-  const {blob,filename}=preparedFrieze;
-  try{
-    const file=new File([blob],filename,{type:'image/png'});
-    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
-      await navigator.share({files:[file],title:'ArchaeoPlan frieze'});
-      friezeSaveDialog?.close();
-      preparedFrieze=null;
-      setStatus(tr('unwrapDone'));
-      return;
+function materialForUnwrap(mat){const m=new THREE.MeshBasicMaterial({map:mat?.map||null,color:mat?.color?.clone?.()||new THREE.Color(0xffffff),vertexColors:!!mat?.vertexColors,transparent:!!mat?.transparent,opacity:mat?.opacity??1,alphaMap:mat?.alphaMap||null,alphaTest:mat?.alphaTest||0,side:THREE.DoubleSide,depthWrite:true,depthTest:true});if(m.map)optimiseTextureForDocumentation(m.map);if(m.alphaMap)optimiseTextureForDocumentation(m.alphaMap);return m}
+function materialIndexForTriangle(geometry,triIndex){const vi=triIndex*3;for(const g of geometry.groups||[])if(vi>=g.start&&vi<g.start+g.count)return g.materialIndex||0;return 0}
+function beginUnwrapArea(){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}unwrapAreaMode=true;unwrapAreaPoints=[];cropPoints=[];cropDrawing=false;cropPointerId=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;renderer.domElement.style.pointerEvents='none';cropInputLayer.classList.add('active');cropOverlay.classList.add('active');cropHint.classList.add('active');cropHint.textContent=tr('unwrapAreaActive');redrawCrop();setStatus(tr('unwrapAreaActive'))}
+function clearUnwrapArea(){unwrapAreaMode=false;unwrapAreaPoints=[];cropPoints=[];cropDrawing=false;cropPointerId=null;renderer.domElement.style.pointerEvents='';cropInputLayer.classList.remove('active');cropOverlay.classList.remove('active');cropHint.classList.remove('active');orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;redrawCrop();setStatus(tr('unwrapAreaCleared'));if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root)}
+function pointInsideScreenPolygon(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.y>y)!==(b.y>y))&&(x<(b.x-a.x)*(y-a.y)/((b.y-a.y)||1e-12)+a.x))inside=!inside}return inside}
+function triangleAllowedByArea(p0,p1,p2){if(!unwrapAreaPoints.length)return true;const c=p0.clone().add(p1).add(p2).multiplyScalar(1/3).project(camera),r=renderer.domElement.getBoundingClientRect();return pointInsideScreenPolygon((c.x*.5+.5)*r.width,(-c.y*.5+.5)*r.height,unwrapAreaPoints)}
+function buildUnwrappedGroup(){
+  if(!selectedModel)return null;
+  const axis=$('unwrapAxis').value,box=selectedModelWorldBox();if(!box)return null;
+  const center=box.getCenter(new THREE.Vector3()),info=unwrapAxisInfo(axis),full=(unwrapStartAngle==null||unwrapEndAngle==null),start=full?0:unwrapStartAngle;
+  let span=full?Math.PI*2:angleOffset(unwrapEndAngle,start,unwrapReverse);if(span<THREE.MathUtils.degToRad(.5))span=Math.PI*2;
+  const meshes=[];let radiusSum=0,radiusCount=0,axisMin=Infinity,axisMax=-Infinity;
+  selectedModel.root.updateWorldMatrix(true,true);
+  selectedModel.root.traverse(obj=>{if(!obj.isMesh||!obj.geometry?.attributes?.position)return;const geo=obj.geometry.index?obj.geometry.toNonIndexed():obj.geometry.clone(),pos=geo.attributes.position,uv=geo.attributes.uv,col=geo.attributes.color,verts=[];for(let i=0;i<pos.count;i++){const p=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(obj.matrixWorld);verts.push(p);const rr=info.radial(p,center);radiusSum+=Math.hypot(rr.u,rr.v);radiusCount++;const ax=info.axial(p);axisMin=Math.min(axisMin,ax);axisMax=Math.max(axisMax,ax)}meshes.push({obj,geo,verts,uv,col})});
+  if(!meshes.length||!radiusCount)return null;
+  const refRadius=Math.max(radiusSum/radiusCount,1e-6),out=new THREE.Group();let kept=0,minDepth=Infinity,maxDepth=-Infinity;
+  for(const item of meshes){
+    const {obj,geo,verts,uv,col}=item,mats=Array.isArray(obj.material)?obj.material:[obj.material],buckets=new Map(),triCount=Math.floor(verts.length/3);
+    for(let t=0;t<triCount;t++){
+      const p0=verts[t*3],p1=verts[t*3+1],p2=verts[t*3+2];if(!triangleAllowedByArea(p0,p1,p2))continue;
+      const centroid=p0.clone().add(p1).add(p2).multiplyScalar(1/3),co=angleOffset(angleForPoint(centroid,center,axis),start,unwrapReverse);if(!full&&co>span)continue;
+      const mi=materialIndexForTriangle(geo,t);if(!buckets.has(mi))buckets.set(mi,{p:[],uv:[],c:[]});const b=buckets.get(mi);
+      for(let k=0;k<3;k++){const vi=t*3+k,p=verts[vi],rr=info.radial(p,center),radius=Math.hypot(rr.u,rr.v);let off=angleOffset(angleForPoint(p,center,axis),start,unwrapReverse);while(off-co>Math.PI)off-=Math.PI*2;while(co-off>Math.PI)off+=Math.PI*2;const x=off*refRadius,y=info.axial(p)-axisMin,z=radius-refRadius;minDepth=Math.min(minDepth,z);maxDepth=Math.max(maxDepth,z);b.p.push(x,y,z);if(uv)b.uv.push(uv.getX(vi),uv.getY(vi));if(col)b.c.push(col.getX(vi),col.getY(vi),col.getZ(vi))}
+      kept++;
     }
-    downloadPreparedFrieze();
-  }catch(err){
-    if(err?.name==='AbortError')return;
-    console.error(err);
-    setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`);
+    for(const [mi,b] of buckets){if(!b.p.length)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));if(b.uv.length)g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));if(b.c.length)g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));out.add(new THREE.Mesh(g,materialForUnwrap(mats[mi]||mats[0])))}
   }
+  if(!kept)return null;out.userData.unwrapWidth=span*refRadius;out.userData.unwrapHeight=Math.max(axisMax-axisMin,1e-6);out.userData.depthMin=minDepth;out.userData.depthMax=maxDepth;return out
 }
-
+async function renderUnwrappedGroup(group,outW,bandTop=0,bandBottom=1){
+  const fullW=group.userData.unwrapWidth,fullH=group.userData.unwrapHeight,bt=Math.max(0,Math.min(.999,bandTop)),bb=Math.max(bt+.001,Math.min(1,bandBottom)),selH=fullH*(bb-bt),aspect=Math.max(fullW/selH,.01),outH=Math.max(500,Math.min(50000,Math.round(outW/aspect)));
+  const scene2=new THREE.Scene();scene2.background=new THREE.Color(0xffffff);scene2.add(group);
+  const yTop=fullH*(1-bt),yBottom=fullH*(1-bb),front=(group.userData.depthMax||0)+Math.max(Math.abs(group.userData.depthMax||0),Math.abs(group.userData.depthMin||0))+10;
+  const cam=new THREE.OrthographicCamera(0,fullW,yTop,yBottom,-10000,10000);cam.position.set(0,0,front);cam.lookAt(0,0,0);cam.updateProjectionMatrix();
+  const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Kunne ikke oprette eksportlærred.');
+  const oldSize=new THREE.Vector2();renderer.getSize(oldSize);const oldPR=renderer.getPixelRatio(),tileMax=rendererMaxTileSize(),cols=Math.ceil(outW/tileMax),rows=Math.ceil(outH/tileMax),full={left:0,right:fullW,top:yTop,bottom:yBottom};let done=0,total=cols*rows;renderer.setPixelRatio(1);
+  try{for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const x=col*tileMax,y=row*tileMax,tw=Math.min(tileMax,outW-x),th=Math.min(tileMax,outH-y);renderer.setSize(tw,th,false);setOrthoTile(cam,outW,outH,x,y,tw,th,full);renderer.render(scene2,cam);ctx.drawImage(renderer.domElement,0,0,tw,th,x,y,tw,th);done++;setStatus(`${tr('unwrapWorking')} ${done}/${total}`);await new Promise(r=>setTimeout(r,0))}return await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('PNG kunne ikke oprettes.')),'image/png'))}
+  finally{renderer.setPixelRatio(oldPR);renderer.setSize(oldSize.x,oldSize.y,false);scene2.remove(group);orbit.update()}
+}
+function disposeUnwrapGroup(group){group?.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose()}})}
+async function createUnwrapPreview(){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}setStatus(tr('unwrapWorking'));try{const group=buildUnwrappedGroup();if(!group){setStatus(tr('unwrapNoGeometry'));return}const w=Math.min(5000,Math.max(1800,parseInt($('unwrapWidth').value)||12000)),blob=await renderUnwrappedGroup(group,w,0,1);disposeUnwrapGroup(group);if(unwrapPreviewUrl)URL.revokeObjectURL(unwrapPreviewUrl);unwrapPreviewUrl=URL.createObjectURL(blob);unwrapPreviewImage.src=unwrapPreviewUrl;unwrapBandTop=0;unwrapBandBottom=1;updateUnwrapBandUi();unwrapPreviewDialog.showModal()}catch(err){console.error(err);setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`)}}
+function updateUnwrapBandUi(){unwrapBandOverlay.style.top=`${unwrapBandTop*100}%`;unwrapBandOverlay.style.height=`${(unwrapBandBottom-unwrapBandTop)*100}%`;$('unwrapBandInfo').textContent=(unwrapBandTop<=.001&&unwrapBandBottom>=.999)?tr('unwrapBandAll'):`${Math.round(unwrapBandTop*100)}–${Math.round(unwrapBandBottom*100)} %`}
+function attachBandHandle(handle,isTop){let active=false;const move=e=>{if(!active)return;const r=unwrapPreviewStage.getBoundingClientRect(),y=Math.max(0,Math.min(r.height,e.clientY-r.top))/Math.max(r.height,1);if(isTop)unwrapBandTop=Math.min(y,unwrapBandBottom-.03);else unwrapBandBottom=Math.max(y,unwrapBandTop+.03);updateUnwrapBandUi()};handle.addEventListener('pointerdown',e=>{active=true;handle.setPointerCapture?.(e.pointerId);move(e)});handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',()=>active=false);handle.addEventListener('pointercancel',()=>active=false)}
+async function exportUnwrapBand(full=false){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}const group=buildUnwrappedGroup();if(!group){setStatus(tr('unwrapNoGeometry'));return}try{const outW=Math.max(1000,Math.min(50000,parseInt($('unwrapWidth').value)||12000)),blob=await renderUnwrappedGroup(group,outW,full?0:unwrapBandTop,full?1:unwrapBandBottom),suffix=full?'udfoldning':'udfoldning-band',filename=`${selectedModel.name.replace(/\.[^.]+$/,'')}-${suffix}.png`;preparedFrieze={blob,filename};unwrapPreviewDialog.close();if(friezeSaveDialog?.showModal)friezeSaveDialog.showModal();setStatus(tr('friezePrepared'))}finally{disposeUnwrapGroup(group)}}
+function downloadPreparedFrieze(){if(!preparedFrieze)return;const{blob,filename}=preparedFrieze,url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);friezeSaveDialog?.close();preparedFrieze=null;setStatus(tr('unwrapDone'))}
+async function sharePreparedFrieze(){if(!preparedFrieze)return;const{blob,filename}=preparedFrieze;try{const file=new File([blob],filename,{type:'image/png'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:'ArchaeoPlan unwrap'});friezeSaveDialog?.close();preparedFrieze=null;setStatus(tr('unwrapDone'));return}downloadPreparedFrieze()}catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`)}}
 
 // ---------- Plan / underlay ----------
 function updateUnderlayUi(){
@@ -863,6 +866,11 @@ function redrawCrop(){
 }
 function pointFromEvent(e){const r=cropInputLayer.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function down(e){
+  if(unwrapAreaMode){
+    e.preventDefault();e.stopPropagation();
+    const p=pointFromEvent(e);cropDrawing=true;cropPointerId=e.pointerId;unwrapAreaPoints=[p];cropPoints=unwrapAreaPoints;
+    cropInputLayer.setPointerCapture?.(e.pointerId);redrawCrop();return;
+  }
   if(!cropMode)return;e.preventDefault();e.stopPropagation();
   const p=pointFromEvent(e);
   if(cropTool==='polygon'){cropPoints.push(p);redrawCrop();updateCropButtons();return}
@@ -876,11 +884,22 @@ function down(e){
   cropInputLayer.setPointerCapture?.(e.pointerId);redrawCrop();updateCropButtons();
 }
 function move(e){
+  if(unwrapAreaMode){
+    if(!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
+    const p=pointFromEvent(e),last=unwrapAreaPoints[unwrapAreaPoints.length-1];
+    if(!last||Math.hypot(p.x-last.x,p.y-last.y)>=4){unwrapAreaPoints.push(p);cropPoints=unwrapAreaPoints;redrawCrop()}return;
+  }
   if(!cropMode||cropTool!=='freehand'||!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
   const p=pointFromEvent(e),last=cropPoints[cropPoints.length-1];
   if(!last||Math.hypot(p.x-last.x,p.y-last.y)>=4){cropPoints.push(p);redrawCrop();updateCropButtons()}
 }
 function up(e){
+  if(unwrapAreaMode){
+    if(!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
+    cropDrawing=false;cropInputLayer.releasePointerCapture?.(e.pointerId);cropPointerId=null;
+    if(unwrapAreaPoints.length>=3){unwrapAreaMode=false;cropInputLayer.classList.remove('active');cropOverlay.classList.remove('active');cropHint.classList.remove('active');renderer.domElement.style.pointerEvents='';orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setStatus(tr('unwrapAreaChosen'));if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root)}
+    return;
+  }
   if(!cropMode||cropTool!=='freehand'||!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
   cropDrawing=false;cropInputLayer.releasePointerCapture?.(e.pointerId);cropPointerId=null;redrawCrop();updateCropButtons();
   if(cropPoints.length>=3)setStatus(tr('strokeSaved'));
@@ -1445,7 +1464,7 @@ function currentProjectSettings(){
     },
     measurement:measurePoints.map(p=>p.toArray()),
     underlay:underlayMetadata(),
-    unwrap:{axis:$('unwrapAxis').value,width:$('unwrapWidth').value,start:unwrapStartAngle,end:unwrapEndAngle,reverse:unwrapReverse}
+    unwrap:{axis:$('unwrapAxis').value,width:$('unwrapWidth').value,start:unwrapStartAngle,end:unwrapEndAngle,reverse:unwrapReverse,area:unwrapAreaPoints,bandTop:unwrapBandTop,bandBottom:unwrapBandBottom}
   };
 }
 function modelMetadata(m,index){
@@ -1622,7 +1641,8 @@ async function restoreProjectSettings(settings){
   if(settings.currentView)applyViewState(settings.currentView);
 
   if(settings.underlay)await restoreUnderlay(settings.underlay);else updateUnderlayUi();
-  if(settings.unwrap){$('unwrapAxis').value=settings.unwrap.axis||'y';$('unwrapWidth').value=settings.unwrap.width||'12000';unwrapStartAngle=Number.isFinite(settings.unwrap.start)?settings.unwrap.start:null;unwrapEndAngle=Number.isFinite(settings.unwrap.end)?settings.unwrap.end:null;unwrapReverse=!!settings.unwrap.reverse;updateUnwrapStatus();}
+  if(settings.unwrap){$('unwrapAxis').value=settings.unwrap.axis||'y';$('unwrapWidth').value=settings.unwrap.width||'12000';unwrapStartAngle=Number.isFinite(settings.unwrap.start)?settings.unwrap.start:null;unwrapEndAngle=Number.isFinite(settings.unwrap.end)?settings.unwrap.end:null;unwrapReverse=!!settings.unwrap.reverse;
+    unwrapAreaPoints=Array.isArray(settings.unwrap.area)?settings.unwrap.area:[];unwrapBandTop=Number.isFinite(settings.unwrap.bandTop)?settings.unwrap.bandTop:0;unwrapBandBottom=Number.isFinite(settings.unwrap.bandBottom)?settings.unwrap.bandBottom:1;updateUnwrapStatus();}
 
   const selectedIndex=Number.isInteger(settings.selectedIndex)?settings.selectedIndex:-1;
   selectModel(selectedIndex>=0&&selectedIndex<models.length?models[selectedIndex]:(models[0]||null));
@@ -1735,6 +1755,15 @@ function redo(){
 }
 
 
+$('unwrapSelectAreaButton').onclick=beginUnwrapArea;
+$('unwrapClearAreaButton').onclick=clearUnwrapArea;
+$('unwrapPreviewButton').onclick=createUnwrapPreview;
+$('unwrapPreviewCloseButton').onclick=()=>unwrapPreviewDialog.close();
+$('unwrapExportBandButton').onclick=()=>exportUnwrapBand(false);
+$('unwrapExportFullButton').onclick=()=>exportUnwrapBand(true);
+attachBandHandle($('unwrapBandTopHandle'),true);
+attachBandHandle($('unwrapBandBottomHandle'),false);
+
 $('saveFriezePngButton').onclick=downloadPreparedFrieze;
 $('shareFriezeButton').onclick=sharePreparedFrieze;
 $('cancelFriezeSaveButton').onclick=()=>{friezeSaveDialog.close();preparedFrieze=null;};
@@ -1742,7 +1771,6 @@ $('unwrapStartButton').onclick=()=>beginUnwrapPick('start');
 $('unwrapEndButton').onclick=()=>beginUnwrapPick('end');
 $('unwrapFullButton').onclick=resetUnwrapFull;
 $('unwrapReverseButton').onclick=reverseUnwrap;
-$('unwrapExportButton').onclick=exportUnwrappedFrieze;
 $('unwrapAxis').onchange=()=>{unwrapStartAngle=null;unwrapEndAngle=null;updateUnwrapStatus();};
 
 $('loadUnderlayButton').onclick=()=>underlayInput.click();
