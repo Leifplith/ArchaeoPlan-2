@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.30';
+const VERSION='0.2.31';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -897,7 +897,10 @@ function cancelCrop(){
   $('startCropButton').classList.remove('active');
   orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;
   if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root);
-  redrawCrop();updateCropButtons();
+  redrawCrop();
+  $('freehandCropButton').disabled=false;
+  $('polygonCropButton').disabled=false;
+  updateCropButtons();
 }
 function redrawCrop(){
   const pts=cropPoints.map(p=>`${p.x},${p.y}`).join(' ');
@@ -1112,14 +1115,14 @@ function cropSafeScreen(v){
   return {x:NaN,y:NaN};
 }
 function cropSafeBBox(points){
-  const valid=points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
-  if(!valid.length)return null;
-  return {
-    minX:Math.min(...valid.map(p=>p.x)),
-    minY:Math.min(...valid.map(p=>p.y)),
-    maxX:Math.max(...valid.map(p=>p.x)),
-    maxY:Math.max(...valid.map(p=>p.y))
-  };
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,count=0;
+  for(const p of points||[]){
+    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))continue;
+    if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;
+    if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;
+    count++;
+  }
+  return count?{minX,minY,maxX,maxY}:null;
 }
 
 function cropTrianglePrecise(tri,sp,spec,keepInside,edges){
@@ -1260,17 +1263,32 @@ async function cropGeometry(mesh,spec,keepInside){
   }
 
   const newG=new THREE.BufferGeometry();
-  const combined={};for(const name of attrNames)combined[name]=[];
-  let start=0;
+
+  // Build groups and final attribute sizes first. Avoid Array.push(...hugeArray):
+  // large photogrammetry meshes can exceed JavaScript's call-stack limit.
+  let vertexStart=0;
+  const activeBuckets=[];
   for(const [mi,b] of buckets){
-    const count=b.position.length/3;if(!count)continue;
-    for(const name of attrNames)combined[name].push(...b[name]);
-    newG.addGroup(start,count,mi);start+=count;
+    const count=b.position.length/3;
+    if(!count)continue;
+    activeBuckets.push([mi,b,count]);
+    newG.addGroup(vertexStart,count,mi);
+    vertexStart+=count;
   }
 
   for(const name of attrNames){
-    const old=g.attributes[name];
-    newG.setAttribute(name,new THREE.Float32BufferAttribute(combined[name],old.itemSize));
+    const oldAttr=g.attributes[name];
+    let total=0;
+    for(const [,b] of activeBuckets)total+=b[name].length;
+
+    const typed=new Float32Array(total);
+    let off=0;
+    for(const [,b] of activeBuckets){
+      const src=b[name];
+      for(let i=0;i<src.length;i++)typed[off+i]=src[i];
+      off+=src.length;
+    }
+    newG.setAttribute(name,new THREE.BufferAttribute(typed,oldAttr.itemSize,oldAttr.normalized));
   }
   newG.userData={...g.userData};
   newG.computeBoundingBox();newG.computeBoundingSphere();
@@ -1324,21 +1342,35 @@ function finishCropAfterCalculation(){
 function restoreCropSelectionAfterFailure(){
   cropCalculating=false;
   cropCancelRequested=false;
-  cropMode=true;
+  cropMode=false;
   cropDrawing=false;
   cropPointerId=null;
-  renderer.domElement.style.pointerEvents='none';
-  cropInputLayer.classList.add('active');
+
+  // Keep the finished contour visible and locked.
+  renderer.domElement.style.pointerEvents='';
+  cropInputLayer.classList.remove('active');
   cropOverlay.classList.add('active');
-  cropHint.classList.add('active');
-  $('startCropButton').classList.add('active');
-  orbit.enabled=false;
-  orbit.enableRotate=false;
-  orbit.enablePan=false;
-  orbit.enableZoom=false;
-  transform.detach();
+  cropHint.classList.remove('active');
+  $('startCropButton').classList.remove('active');
+
+  orbit.enabled=true;
+  orbit.enableRotate=true;
+  orbit.enablePan=true;
+  orbit.enableZoom=true;
+  if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root);
+
   redrawCrop();
-  updateCropButtons();
+
+  // Allow retry with the same locked polygon or cancel it, but do not permit
+  // further drawing until Start beskæring is explicitly chosen again.
+  $('freehandCropButton').disabled=true;
+  $('polygonCropButton').disabled=true;
+  $('startCropButton').disabled=true;
+  $('cancelCropButton').disabled=false;
+  $('cancelCropButton').textContent=tr('cancel');
+  const ready=cropPoints.length>=3;
+  $('cropInsideButton').disabled=!ready;
+  $('cropOutsideButton').disabled=!ready;
 }
 
 async function applyCrop(keepInside){
