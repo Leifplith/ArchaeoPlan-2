@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.24';
+const VERSION='0.2.25';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -932,19 +932,15 @@ function screenPoint(v){
   return{x:(p.x*.5+.5)*r.width,y:(-p.y*.5+.5)*r.height};
 }
 
-function cropScreenLine(a,b){
-  const dx=b.x-a.x,dy=b.y-a.y;
-  return {A:-dy,B:dx,C:dy*a.x-dx*a.y};
-}
-function cropVertexScreen(v,w,h){
-  const c=v.clip,iw=Math.abs(c.w)>1e-12?1/c.w:0;
-  return {x:(c.x*iw*.5+.5)*w,y:(-c.y*iw*.5+.5)*h};
-}
-function cropHomLine(v,line,w,h){
-  const c=v.clip;
-  const sx=(.5*c.x+.5*c.w)*w;
-  const sy=(-.5*c.y+.5*c.w)*h;
-  return line.A*sx+line.B*sy+line.C*c.w;
+
+function cropAttrValue(attr,index){
+  const out=[];
+  if(attr.itemSize>0)out.push(attr.getX(index));
+  if(attr.itemSize>1)out.push(attr.getY(index));
+  if(attr.itemSize>2)out.push(attr.getZ(index));
+  if(attr.itemSize>3)out.push(attr.getW(index));
+  for(let i=4;i<attr.itemSize;i++)out.push(attr.array[index*attr.itemSize+i]);
+  return out;
 }
 function cropLerpVertex(a,b,t){
   const attrs={};
@@ -961,87 +957,36 @@ function cropLerpVertex(a,b,t){
     }
     attrs[name]=out;
   }
-  return {
-    attrs,
-    clip:new THREE.Vector4(
-      a.clip.x+(b.clip.x-a.clip.x)*t,
-      a.clip.y+(b.clip.y-a.clip.y)*t,
-      a.clip.z+(b.clip.z-a.clip.z)*t,
-      a.clip.w+(b.clip.w-a.clip.w)*t
-    )
-  };
+  return {attrs};
 }
-function cropClipHalfPlane(poly,line,orient,keepInside,w,h){
-  if(poly.length<3)return [];
-  const out=[],eps=1e-7;
-  let s=poly[poly.length-1],ds=orient*cropHomLine(s,line,w,h);
-  for(const e of poly){
-    const de=orient*cropHomLine(e,line,w,h);
-    const sin=keepInside?ds>=-eps:ds<=eps;
-    const ein=keepInside?de>=-eps:de<=eps;
-    if(ein){
-      if(!sin){
-        const den=ds-de,t=Math.abs(den)<1e-20?.5:ds/den;
-        out.push(cropLerpVertex(s,e,Math.max(0,Math.min(1,t))));
-      }
-      out.push(e);
-    }else if(sin){
-      const den=ds-de,t=Math.abs(den)<1e-20?.5:ds/den;
-      out.push(cropLerpVertex(s,e,Math.max(0,Math.min(1,t))));
-    }
-    s=e;ds=de;
-  }
-  return out;
+function cropTriangleMaterialIndex(g,indexOffset){
+  for(const group of g.groups||[])if(indexOffset>=group.start&&indexOffset<group.start+group.count)return group.materialIndex||0;
+  return 0;
 }
-function cropIntersectConvex(poly,tri,w,h){
-  let p=poly;
-  for(const edge of tri.edges){
-    p=cropClipHalfPlane(p,edge.line,tri.orient,true,w,h);
-    if(p.length<3)return [];
-  }
-  return p;
+function cropEmitTriangle(a,b,c,bucket,attrNames){
+  for(const v of [a,b,c])for(const name of attrNames)bucket[name].push(...v.attrs[name]);
 }
-function cropSubtractConvex(poly,tri,w,h){
-  let candidate=poly;
-  const outside=[];
-  for(const edge of tri.edges){
-    if(candidate.length<3)break;
-    const out=cropClipHalfPlane(candidate,edge.line,tri.orient,false,w,h);
-    if(out.length>=3)outside.push(out);
-    candidate=cropClipHalfPlane(candidate,edge.line,tri.orient,true,w,h);
-  }
-  return outside;
+function cropEmitPoly(poly,bucket,attrNames){
+  if(poly.length<3)return;
+  for(let i=1;i+1<poly.length;i++)cropEmitTriangle(poly[0],poly[i],poly[i+1],bucket,attrNames);
 }
-function cropBboxOverlap(a,b){
-  return !(a.maxX<b.minX||a.minX>b.maxX||a.maxY<b.minY||a.minY>b.maxY);
+function cropSegIntersect(a,b,c,d){
+  const r={x:b.x-a.x,y:b.y-a.y},s={x:d.x-c.x,y:d.y-c.y};
+  const den=r.x*s.y-r.y*s.x;
+  if(Math.abs(den)<1e-10)return null;
+  const q={x:c.x-a.x,y:c.y-a.y};
+  const t=(q.x*s.y-q.y*s.x)/den,u=(q.x*r.y-q.y*r.x)/den;
+  if(t<-1e-8||t>1+1e-8||u<-1e-8||u>1+1e-8)return null;
+  return {t:Math.max(0,Math.min(1,t)),u:Math.max(0,Math.min(1,u))};
 }
-
-function cropPointLineDistance(p,a,b){
-  const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
-  if(l2<1e-12)return Math.hypot(p.x-a.x,p.y-a.y);
-  let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;
-  t=Math.max(0,Math.min(1,t));
-  return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));
-}
-function cropSimplifyRdp(points,tolerance){
-  if(points.length<=2)return points.slice();
-  let maxD=0,index=0;
-  const a=points[0],b=points[points.length-1];
-  for(let i=1;i<points.length-1;i++){
-    const d=cropPointLineDistance(points[i],a,b);
-    if(d>maxD){maxD=d;index=i}
-  }
-  if(maxD>tolerance){
-    const left=cropSimplifyRdp(points.slice(0,index+1),tolerance);
-    const right=cropSimplifyRdp(points.slice(index),tolerance);
-    return left.slice(0,-1).concat(right);
-  }
-  return [a,b];
+function cropPointInTri(p,a,b,c){
+  const s=(p1,p2,p3)=>(p1.x-p3.x)*(p2.y-p3.y)-(p2.x-p3.x)*(p1.y-p3.y);
+  const d1=s(p,a,b),d2=s(p,b,c),d3=s(p,c,a);
+  const neg=(d1<0)||(d2<0)||(d3<0),pos=(d1>0)||(d2>0)||(d3>0);
+  return !(neg&&pos);
 }
 function cropPrepareContour(poly){
   if(!Array.isArray(poly)||poly.length<3)return null;
-
-  // Remove almost identical neighbouring points first.
   const dedup=[];
   for(const p of poly){
     const q={x:+p.x,y:+p.y};
@@ -1049,215 +994,171 @@ function cropPrepareContour(poly){
     if(!last||Math.hypot(q.x-last.x,q.y-last.y)>=1.0)dedup.push(q);
   }
   if(dedup.length<3)return null;
-
-  // Freehand drawing can contain hundreds/thousands of points. Simplify gently
-  // before triangulation. 1.25 screen pixels is visually negligible.
   let clean=dedup.length>80?cropSimplifyRdp(dedup,1.25):dedup.slice();
-
-  // Explicitly close the contour for display/logic, but triangulateShape wants
-  // the final duplicate removed, so we normalise it back to one unique loop.
   if(clean.length<3)return null;
   const first=clean[0],last=clean[clean.length-1];
   if(Math.hypot(first.x-last.x,first.y-last.y)<0.75)clean.pop();
-
-  // If simplification became too aggressive, fall back to deduplicated points.
-  if(clean.length<3)clean=dedup.slice();
-  return clean;
+  return clean.length>=3?clean:null;
 }
-
 function makeCropClipSpec(poly){
   const clean=cropPrepareContour(poly);
   if(!clean||clean.length<3)return null;
-
-  const contour=clean.map(p=>new THREE.Vector2(p.x,p.y));
-  const faces=THREE.ShapeUtils.triangulateShape(contour,[]);
-  if(!faces?.length)return null;
-
-  const tris=[];
+  const edges=[];
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const p of clean){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
-  for(const f of faces){
-    const a=clean[f[0]],b=clean[f[1]],c=clean[f[2]];
-    const area=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
-    if(Math.abs(area)<1e-8)continue;
-    const tri={
-      orient:area>=0?1:-1,
-      bbox:{minX:Math.min(a.x,b.x,c.x),minY:Math.min(a.y,b.y,c.y),maxX:Math.max(a.x,b.x,c.x),maxY:Math.max(a.y,b.y,c.y)},
-      edges:[{line:cropScreenLine(a,b)},{line:cropScreenLine(b,c)},{line:cropScreenLine(c,a)}]
-    };
-    tris.push(tri);
+  for(let i=0;i<clean.length;i++){
+    const a=clean[i],b=clean[(i+1)%clean.length];
+    edges.push({a,b,minX:Math.min(a.x,b.x),minY:Math.min(a.y,b.y),maxX:Math.max(a.x,b.x),maxY:Math.max(a.y,b.y)});
+    minX=Math.min(minX,a.x);minY=Math.min(minY,a.y);maxX=Math.max(maxX,a.x);maxY=Math.max(maxY,a.y);
   }
-  if(!tris.length)return null;
-
   const cell=96,grid=new Map();
-  for(let ti=0;ti<tris.length;ti++){
-    const b=tris[ti].bbox;
-    const x0=Math.floor(b.minX/cell),x1=Math.floor(b.maxX/cell),y0=Math.floor(b.minY/cell),y1=Math.floor(b.maxY/cell);
+  for(let ei=0;ei<edges.length;ei++){
+    const e=edges[ei];
+    const x0=Math.floor(e.minX/cell),x1=Math.floor(e.maxX/cell),y0=Math.floor(e.minY/cell),y1=Math.floor(e.maxY/cell);
     for(let gy=y0;gy<=y1;gy++)for(let gx=x0;gx<=x1;gx++){
-      const k=gx+','+gy;
-      if(!grid.has(k))grid.set(k,[]);
-      grid.get(k).push(ti);
+      const k=gx+','+gy;if(!grid.has(k))grid.set(k,[]);grid.get(k).push(ei);
     }
   }
-  return {poly:clean,tris,global:{minX,minY,maxX,maxY},cell,grid};
+  return {poly:clean,edges,cell,grid,bbox:{minX,minY,maxX,maxY}};
 }
-function cropCandidateTris(spec,bbox){
-  if(!cropBboxOverlap(spec.global,bbox))return [];
-  const ids=new Set(),cell=spec.cell;
-  const x0=Math.floor(bbox.minX/cell),x1=Math.floor(bbox.maxX/cell),y0=Math.floor(bbox.minY/cell),y1=Math.floor(bbox.maxY/cell);
+function cropCandidateEdges(spec,bbox){
+  if(bbox.maxX<spec.bbox.minX||bbox.minX>spec.bbox.maxX||bbox.maxY<spec.bbox.minY||bbox.minY>spec.bbox.maxY)return [];
+  const ids=new Set(),c=spec.cell;
+  const x0=Math.floor(bbox.minX/c),x1=Math.floor(bbox.maxX/c),y0=Math.floor(bbox.minY/c),y1=Math.floor(bbox.maxY/c);
   for(let gy=y0;gy<=y1;gy++)for(let gx=x0;gx<=x1;gx++){
-    const arr=spec.grid.get(gx+','+gy);
-    if(arr)for(const id of arr)if(cropBboxOverlap(spec.tris[id].bbox,bbox))ids.add(id);
+    const arr=spec.grid.get(gx+','+gy);if(arr)for(const id of arr)ids.add(id);
   }
-  return [...ids].map(i=>spec.tris[i]);
+  return [...ids].map(i=>spec.edges[i]);
 }
-function cropAttrValue(attr,index){
+function cropScreenOfLocalPosition(p,mvp,w,h){
+  const c=new THREE.Vector4(p[0],p[1],p[2],1).applyMatrix4(mvp);
+  const iw=Math.abs(c.w)>1e-12?1/c.w:0;
+  return {x:(c.x*iw*.5+.5)*w,y:(-c.y*iw*.5+.5)*h};
+}
+function cropClipByPolygonEdge(polyVerts,edge,keepLeft,screenFn){
+  if(polyVerts.length<3)return [];
   const out=[];
-  if(attr.itemSize>0)out.push(attr.getX(index));
-  if(attr.itemSize>1)out.push(attr.getY(index));
-  if(attr.itemSize>2)out.push(attr.getZ(index));
-  if(attr.itemSize>3)out.push(attr.getW(index));
-  for(let i=4;i<attr.itemSize;i++)out.push(attr.array[index*attr.itemSize+i]);
+  const side=p=>(edge.b.x-edge.a.x)*(p.y-edge.a.y)-(edge.b.y-edge.a.y)*(p.x-edge.a.x);
+  let s=polyVerts[polyVerts.length-1],ss=screenFn(s),ds=side(ss);
+  for(const e of polyVerts){
+    const se=screenFn(e),de=side(se);
+    const sin=keepLeft?ds>=-1e-7:ds<=1e-7;
+    const ein=keepLeft?de>=-1e-7:de<=1e-7;
+    if(ein){
+      if(!sin){
+        const den=ds-de,t=Math.abs(den)<1e-12?.5:ds/den;
+        out.push(cropLerpVertex(s,e,Math.max(0,Math.min(1,t))));
+      }
+      out.push(e);
+    }else if(sin){
+      const den=ds-de,t=Math.abs(den)<1e-12?.5:ds/den;
+      out.push(cropLerpVertex(s,e,Math.max(0,Math.min(1,t))));
+    }
+    s=e;ss=se;ds=de;
+  }
   return out;
 }
-function cropTriangleMaterialIndex(g,indexOffset){
-  for(const group of g.groups||[])if(indexOffset>=group.start&&indexOffset<group.start+group.count)return group.materialIndex||0;
-  return 0;
-}
-function cropEmitPolygon(poly,bucket,attrNames){
-  if(poly.length<3)return;
-  for(let i=1;i+1<poly.length;i++){
-    const vs=[poly[0],poly[i],poly[i+1]];
-    for(const v of vs)for(const name of attrNames)bucket[name].push(...v.attrs[name]);
+function cropTrianglePrecise(tri,sp,spec,keepInside,edges){
+  const centroid={x:(sp[0].x+sp[1].x+sp[2].x)/3,y:(sp[0].y+sp[1].y+sp[2].y)/3};
+  const centerInside=inPolygon(centroid,spec.poly);
+
+  // Fast path: if no boundary segment touches the triangle, keep/discard whole triangle.
+  let boundaryHits=false;
+  outer: for(const e of edges){
+    for(let k=0;k<3;k++){
+      if(cropSegIntersect(sp[k],sp[(k+1)%3],e.a,e.b)){boundaryHits=true;break outer}
+    }
+    if(cropPointInTri(e.a,sp[0],sp[1],sp[2])||cropPointInTri(e.b,sp[0],sp[1],sp[2])){boundaryHits=true;break}
   }
+  if(!boundaryHits){
+    return (keepInside?centerInside:!centerInside)?[tri]:[];
+  }
+
+  // Boundary triangle: split only against nearby polygon edges.
+  // We iteratively split fragments by each intersecting boundary line, then classify fragment centroids.
+  let fragments=[tri];
+  const screenFn=v=>v._screen;
+  for(const e of edges){
+    const next=[];
+    for(const frag of fragments){
+      const fs=frag.map(v=>v._screen);
+      const bb={minX:Math.min(...fs.map(p=>p.x)),minY:Math.min(...fs.map(p=>p.y)),maxX:Math.max(...fs.map(p=>p.x)),maxY:Math.max(...fs.map(p=>p.y))};
+      if(e.maxX<bb.minX||e.minX>bb.maxX||e.maxY<bb.minY||e.minY>bb.maxY){next.push(frag);continue}
+      const left=cropClipByPolygonEdge(frag,e,true,screenFn);
+      const right=cropClipByPolygonEdge(frag,e,false,screenFn);
+      if(left.length>=3)next.push(left);
+      if(right.length>=3)next.push(right);
+    }
+    fragments=next;
+    if(fragments.length>48)break; // safety against pathological self-intersections
+  }
+  const out=[];
+  for(const frag of fragments){
+    const pts=frag.map(v=>v._screen);
+    const c={x:pts.reduce((s,p)=>s+p.x,0)/pts.length,y:pts.reduce((s,p)=>s+p.y,0)/pts.length};
+    const inside=inPolygon(c,spec.poly);
+    if(keepInside?inside:!inside)out.push(frag);
+  }
+  return out;
 }
 function cropGeometry(mesh,spec,keepInside){
   const g=mesh.geometry,pos=g.attributes?.position;if(!pos||!spec)return false;
   const idx=g.index?Array.from(g.index.array):Array.from({length:pos.count},(_,i)=>i);
-  const attrNames=Object.keys(g.attributes);
-  if(!attrNames.includes('position'))return false;
+  const attrNames=Object.keys(g.attributes);if(!attrNames.includes('position'))return false;
 
-  mesh.updateWorldMatrix(true,false);
-  camera.updateMatrixWorld(true);
+  mesh.updateWorldMatrix(true,false);camera.updateMatrixWorld(true);
   const mvp=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).multiply(mesh.matrixWorld);
   const rect=renderer.domElement.getBoundingClientRect(),w=rect.width,h=rect.height;
   const cache=new Map();
 
   function vertexAt(index){
     if(cache.has(index))return cache.get(index);
-    const attrs={};
-    for(const name of attrNames)attrs[name]=cropAttrValue(g.attributes[name],index);
-    const p=attrs.position;
-    const clip=new THREE.Vector4(p[0],p[1],p[2],1).applyMatrix4(mvp);
-    const v={attrs,clip};cache.set(index,v);return v;
+    const attrs={};for(const name of attrNames)attrs[name]=cropAttrValue(g.attributes[name],index);
+    const v={attrs};v._screen=cropScreenOfLocalPosition(attrs.position,mvp,w,h);cache.set(index,v);return v;
   }
 
   const buckets=new Map();
   function bucketFor(mi){
-    if(!buckets.has(mi)){
-      const b={};for(const name of attrNames)b[name]=[];
-      buckets.set(mi,b);
-    }
+    if(!buckets.has(mi)){const b={};for(const name of attrNames)b[name]=[];buckets.set(mi,b)}
     return buckets.get(mi);
   }
 
-  let produced=0;
+  let boundaryCount=0;
   for(let io=0;io+2<idx.length;io+=3){
     const tri=[vertexAt(idx[io]),vertexAt(idx[io+1]),vertexAt(idx[io+2])];
-    const sp=tri.map(v=>cropVertexScreen(v,w,h));
+    const sp=tri.map(v=>v._screen);
     const bbox={minX:Math.min(sp[0].x,sp[1].x,sp[2].x),minY:Math.min(sp[0].y,sp[1].y,sp[2].y),maxX:Math.max(sp[0].x,sp[1].x,sp[2].x),maxY:Math.max(sp[0].y,sp[1].y,sp[2].y)};
-    const clips=cropCandidateTris(spec,bbox);
+    const edges=cropCandidateEdges(spec,bbox);
     const mi=cropTriangleMaterialIndex(g,io),bucket=bucketFor(mi);
 
-    if(!clips.length){
-      if(!keepInside){cropEmitPolygon(tri,bucket,attrNames);produced++}
+    if(!edges.length){
+      const centroid={x:(sp[0].x+sp[1].x+sp[2].x)/3,y:(sp[0].y+sp[1].y+sp[2].y)/3};
+      const inside=inPolygon(centroid,spec.poly);
+      if(keepInside?inside:!inside)cropEmitTriangle(tri[0],tri[1],tri[2],bucket,attrNames);
       continue;
     }
 
-    if(keepInside){
-      for(const ct of clips){
-        const p=cropIntersectConvex(tri,ct,w,h);
-        if(p.length>=3){cropEmitPolygon(p,bucket,attrNames);produced++}
-      }
-    }else{
-      let fragments=[tri];
-      for(const ct of clips){
-        const next=[];
-        for(const frag of fragments)next.push(...cropSubtractConvex(frag,ct,w,h));
-        fragments=next;
-        if(!fragments.length)break;
-      }
-      for(const p of fragments)if(p.length>=3){cropEmitPolygon(p,bucket,attrNames);produced++}
-    }
+    const result=cropTrianglePrecise(tri,sp,spec,keepInside,edges);
+    if(result.length!==1||result[0]!==tri)boundaryCount++;
+    for(const frag of result)cropEmitPoly(frag,bucket,attrNames);
   }
 
   const newG=new THREE.BufferGeometry();
   const combined={};for(const name of attrNames)combined[name]=[];
   let start=0;
   for(const [mi,b] of buckets){
-    const count=b.position.length/3;
-    if(!count)continue;
+    const count=b.position.length/3;if(!count)continue;
     for(const name of attrNames)combined[name].push(...b[name]);
     newG.addGroup(start,count,mi);start+=count;
   }
-  if(!start){
-    for(const name of attrNames){
-      const old=g.attributes[name];
-      newG.setAttribute(name,new THREE.Float32BufferAttribute([],old.itemSize));
-    }
-  }else{
-    for(const name of attrNames){
-      const old=g.attributes[name];
-      newG.setAttribute(name,new THREE.Float32BufferAttribute(combined[name],old.itemSize));
-    }
+  for(const name of attrNames){
+    const old=g.attributes[name];
+    newG.setAttribute(name,new THREE.Float32BufferAttribute(combined[name],old.itemSize));
   }
   newG.userData={...g.userData};
   newG.computeBoundingBox();newG.computeBoundingSphere();
   const oldGeo=mesh.geometry;mesh.geometry=newG;oldGeo.dispose();
+  mesh.userData.precisionBoundaryTriangles=boundaryCount;
   return true;
-}
-
-function finalizeCropContour(){
-  if(cropPoints.length<3)return false;
-
-  // Stop any active drawing gesture immediately.
-  cropDrawing=false;
-  if(cropPointerId!=null){
-    try{cropInputLayer.releasePointerCapture?.(cropPointerId)}catch(_){}
-  }
-  cropPointerId=null;
-
-  // Freeze input while the cut is calculated.
-  cropMode=false;
-  renderer.domElement.style.pointerEvents='';
-  cropInputLayer.classList.remove('active');
-  cropHint.classList.remove('active');
-  $('startCropButton').classList.remove('active');
-
-  // Keep the overlay visible so the user can clearly see the closed contour.
-  cropOverlay.classList.add('active');
-
-  // Normalise and explicitly lock the contour used for calculation.
-  const clean=cropPrepareContour(cropPoints);
-  if(!clean||clean.length<3)return false;
-  cropPoints=clean.map(p=>({x:p.x,y:p.y}));
-  redrawCrop();
-  updateCropButtons();
-
-  orbit.enabled=false;
-  orbit.enableRotate=false;
-  orbit.enablePan=false;
-  orbit.enableZoom=false;
-  transform.detach();
-  return true;
-}
-function finishCropAfterCalculation(){
-  cropOverlay.classList.remove('active');
-  renderer.domElement.style.pointerEvents='';
-  orbit.enabled=true;
-  orbit.enableRotate=true;
-  orbit.enablePan=true;
-  orbit.enableZoom=true;
 }
 
 async function applyCrop(keepInside){
@@ -1296,7 +1197,8 @@ async function applyCrop(keepInside){
   clone.traverse(o=>{if(o.isMesh)meshes.push(o)});
   for(let i=0;i<meshes.length;i++){
     cropGeometry(meshes[i],spec,keepInside);
-    if((i&1)===1)await new Promise(r=>setTimeout(r,0));
+    setStatus(`${tr('cropSplitting')} ${i+1}/${meshes.length}`);
+    await new Promise(r=>setTimeout(r,0));
   }
 
   setStatus(tr('cropBuilding'));
