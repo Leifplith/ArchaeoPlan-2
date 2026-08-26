@@ -11,9 +11,9 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.32-clean';
+const VERSION='0.2.34';
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
+const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
 const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
@@ -84,6 +84,7 @@ let underlay=null,underlayImageData=null,underlaySelected=false;
 let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false,preparedFrieze=null;
 let unwrapAreaMode=false,unwrapAreaPoints=[],unwrapBandTop=0,unwrapBandBottom=1,unwrapPreviewUrl=null;
 let cropCalculating=false,cropCancelRequested=false;
+let preparedImage=null;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -92,6 +93,10 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  effectiveExport:'Faktisk eksport: {w} × {h} px', exportLimited:'Eksporten er reduceret til {w} × {h} px for at passe i enhedens hukommelse.',
+
+  imageReady:'Billedet er klar', imageReadyText:'Vælg hvordan billedet skal gemmes.', imageSavePng:'Gem PNG', imageSharePrepared:'Del / Gem til Fotos', imageClose:'Luk', imagePrepared:'Billedet er klar til at blive gemt.',
+
   stopCalculation:'Stop beregning', cropCancelled:'Beregning stoppet.', cropProgress:'Beregner præcisionssnit',
 
   cropLocking:'Lukker og låser polygon…', cropPreparing:'Forbereder polygon…', cropSplitting:'Beregner præcisionssnit…', cropBuilding:'Opbygger beskåret model…',
@@ -155,6 +160,10 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  effectiveExport:'Tatsächlicher Export: {w} × {h} px', exportLimited:'Der Export wurde auf {w} × {h} px reduziert, damit er in den Gerätespeicher passt.',
+
+  imageReady:'Das Bild ist fertig', imageReadyText:'Wählen Sie, wie das Bild gespeichert werden soll.', imageSavePng:'PNG speichern', imageSharePrepared:'Teilen / In Fotos sichern', imageClose:'Schließen', imagePrepared:'Das Bild kann jetzt gespeichert werden.',
+
   stopCalculation:'Berechnung stoppen', cropCancelled:'Berechnung gestoppt.', cropProgress:'Präzisionsschnitt wird berechnet',
 
   cropLocking:'Polygon wird geschlossen und gesperrt…', cropPreparing:'Polygon wird vorbereitet…', cropSplitting:'Präzisionsschnitt wird berechnet…', cropBuilding:'Beschnittenes Modell wird aufgebaut…',
@@ -215,6 +224,10 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  effectiveExport:'Actual export: {w} × {h} px', exportLimited:'Export reduced to {w} × {h} px to fit device memory.',
+
+  imageReady:'Image is ready', imageReadyText:'Choose how to save the image.', imageSavePng:'Save PNG', imageSharePrepared:'Share / Save to Photos', imageClose:'Close', imagePrepared:'The image is ready to save.',
+
   stopCalculation:'Stop calculation', cropCancelled:'Calculation stopped.', cropProgress:'Calculating precision cut',
 
   cropLocking:'Closing and locking polygon…', cropPreparing:'Preparing polygon…', cropSplitting:'Calculating precision cut…', cropBuilding:'Building cropped model…',
@@ -275,6 +288,10 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  effectiveExport:'Export réel : {w} × {h} px', exportLimited:'L’export a été réduit à {w} × {h} px pour tenir dans la mémoire de l’appareil.',
+
+  imageReady:'L’image est prête', imageReadyText:'Choisissez comment enregistrer l’image.', imageSavePng:'Enregistrer PNG', imageSharePrepared:'Partager / Enregistrer dans Photos', imageClose:'Fermer', imagePrepared:'L’image est prête à être enregistrée.',
+
   stopCalculation:'Arrêter le calcul', cropCancelled:'Calcul arrêté.', cropProgress:'Calcul de la coupe de précision',
 
   cropLocking:'Fermeture et verrouillage du polygone…', cropPreparing:'Préparation du polygone…', cropSplitting:'Calcul de la coupe de précision…', cropBuilding:'Construction du modèle découpé…',
@@ -410,6 +427,8 @@ function applyLanguage(lang){
   setText('unwrapHeading','unwrapSurface');setText('unwrapHelp','unwrapHelp');setLabelPrefix('unwrapAxis','unwrapAxis');setLabelPrefix('unwrapWidth','unwrapWidth');setText('unwrapStartButton','unwrapStart');setText('unwrapEndButton','unwrapEnd');
   setText('unwrapSelectAreaButton','unwrapSelectArea');setText('unwrapClearAreaButton','unwrapClearArea');setText('unwrapPreviewButton','unwrapPreview');setText('unwrapFullButton','unwrapFull');setText('unwrapReverseButton','unwrapReverse');setText('unwrapExportButton','unwrapExport');updateUnwrapStatus();
   setText('unwrapPreviewHeading','unwrapPreviewHeading');setText('unwrapPreviewHelp','unwrapPreviewHelp');setText('unwrapExportBandButton','unwrapExportBand');setText('unwrapExportFullButton','unwrapExportFull');
+  setText('imageReadyHeading','imageReady');setText('imageReadyText','imageReadyText');
+  setText('savePreparedPngButton','imageSavePng');setText('sharePreparedImageButton','imageSharePrepared');setText('cancelPreparedImageButton','imageClose');
   setText('friezeReadyHeading','friezeReady');setText('friezeReadyText','friezeReadyText');
   setText('saveFriezePngButton','friezeSavePng');setText('shareFriezeButton','friezeShare');setText('cancelFriezeSaveButton','friezeClose');
   setText('docsHeading','docs');setText('docsText','docsText');setText('dropStrong','drop');setText('dropText','dropText');
@@ -417,7 +436,7 @@ function applyLanguage(lang){
   setText('projectReadyHeading','projectReady');setText('projectReadyText','projectReadyText');
   setText('chooseProjectLocationButton','chooseLocation');setText('cancelProjectSaveButton','cancelSave');
 
-  rebuildModelList();renderSavedViews();syncTransformFields();
+  rebuildModelList();renderSavedViews();syncTransformFields();updateEffectiveExportSize();
 }
 
 
@@ -1800,11 +1819,37 @@ function setOrthoTile(camera,fullW,fullH,x,y,w,h,fullBounds){
   camera.updateProjectionMatrix();
 }
 
+
+function resolvedExportSize(){
+  let w=Math.max(200,Math.min(50000,parseInt($('exportWidth').value)||3000));
+  let h=Math.max(200,Math.min(50000,parseInt($('exportHeight').value)||2000));
+
+  // A single final 2D canvas is still required to encode PNG.
+  // Keep the total pixel count conservative on iPad/iPhone, larger on desktop.
+  const isiOS=/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const maxPixels=isiOS?48_000_000:120_000_000;
+
+  const pixels=w*h;
+  let limited=false;
+  if(pixels>maxPixels){
+    const scale=Math.sqrt(maxPixels/pixels);
+    w=Math.max(200,Math.floor(w*scale));
+    h=Math.max(200,Math.floor(h*scale));
+    limited=true;
+  }
+  return {w,h,limited,maxPixels};
+}
+function updateEffectiveExportSize(){
+  const el=$('effectiveExportSize');if(!el)return;
+  const s=resolvedExportSize();
+  el.textContent=tr('effectiveExport',{w:s.w.toLocaleString(),h:s.h.toLocaleString()});
+}
+
 async function renderExportBlob(){
-  // Respect exactly what the user typed. Keep only a practical hard ceiling
-  // to avoid impossible multi-gigabyte canvases on mobile browsers.
-  const outW=Math.max(200,Math.min(50000,parseInt($('exportWidth').value)||3000));
-  const outH=Math.max(200,Math.min(50000,parseInt($('exportHeight').value)||2000));
+  const resolved=resolvedExportSize();
+  const outW=resolved.w,outH=resolved.h;
+  if(resolved.limited)setStatus(tr('exportLimited',{w:outW.toLocaleString(),h:outH.toLocaleString()}));
 
   const finalCanvas=document.createElement('canvas');
   finalCanvas.width=outW;
@@ -1914,35 +1959,62 @@ async function renderExportBlob(){
 }
 
 async function savePng(){
-  const blob=await renderExportBlob();
-  if(!blob)return;
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`ArchaeoPlan-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
-  setStatus(tr('pngExported'));
+  try{
+    setStatus('Forbereder billede…');
+    const blob=await renderExportBlob();
+    if(!blob)return;
+    preparedImage={
+      blob,
+      filename:`ArchaeoPlan-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`
+    };
+    if(imageSaveDialog?.showModal)imageSaveDialog.showModal();
+    setStatus(tr('imagePrepared'));
+  }catch(err){
+    console.error(err);
+    setStatus(err?.message||'Billedeksport mislykkedes.');
+  }
 }
 async function shareImage(){
-  const blob=await renderExportBlob();
-  if(!blob)return;
-  const file=new File([blob],'ArchaeoPlan.png',{type:'image/png'});
-  if(navigator.canShare?.({files:[file]}) && navigator.share){
-    try{
-      await navigator.share({files:[file],title:'ArchaeoPlan'});
-      setStatus(tr('imageShare'));
-      return;
-    }catch(err){
-      if(err?.name==='AbortError')return;
-    }
-  }
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download='ArchaeoPlan.png';a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
-  setStatus(tr('imageFallback'));
+  // Render first; actual share happens from a new physical tap in the dialog.
+  await savePng();
 }
 
+
+
+function downloadPreparedImage(){
+  if(!preparedImage)return;
+  const {blob,filename}=preparedImage;
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  imageSaveDialog?.close();
+  preparedImage=null;
+  setStatus(tr('pngExported'));
+}
+async function sharePreparedImage(){
+  if(!preparedImage)return;
+  const {blob,filename}=preparedImage;
+  try{
+    const file=new File([blob],filename,{type:'image/png'});
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+      await navigator.share({files:[file],title:'ArchaeoPlan'});
+      imageSaveDialog?.close();
+      preparedImage=null;
+      setStatus(tr('imageShare'));
+      return;
+    }
+    downloadPreparedImage();
+  }catch(err){
+    if(err?.name==='AbortError')return;
+    console.error(err);
+    setStatus(err?.message||tr('imageFallback'));
+  }
+}
 
 // ---------- Project files (.archaeoplan) ----------
 const PROJECT_FORMAT='ArchaeoPlanProject';
@@ -2306,13 +2378,17 @@ $('clearMeasureButton').onclick=clearMeasurement;
 
 $('toggleExportFrameButton').onclick=toggleExportFrame;
 $('fitToExportFrameButton').onclick=fitToExportFrame;
+$('savePreparedPngButton').onclick=downloadPreparedImage;
+$('sharePreparedImageButton').onclick=sharePreparedImage;
+$('cancelPreparedImageButton').onclick=()=>{imageSaveDialog.close();preparedImage=null;};
 $('exportPngButton').onclick=savePng;
 $('shareImageButton').onclick=shareImage;
 
-$('exportRatio').onchange=()=>syncExportDimensions('ratio');
-$('exportPreset').onchange=()=>syncExportDimensions('preset');
-$('exportWidth').onchange=()=>syncExportDimensions('width');
-$('exportHeight').onchange=()=>syncExportDimensions('height');
+$('exportRatio').onchange=()=>{syncExportDimensions('ratio');updateEffectiveExportSize()};
+$('exportPreset').onchange=()=>{syncExportDimensions('preset');updateEffectiveExportSize()};
+$('exportWidth').onchange=()=>{syncExportDimensions('width');updateEffectiveExportSize()};
+$('exportHeight').onchange=()=>{syncExportDimensions('height');updateEffectiveExportSize()};
+$('exportWidth').oninput=updateEffectiveExportSize;$('exportHeight').oninput=updateEffectiveExportSize;
 
 $('newProjectButton').onclick=newProject;
 $('saveProjectButton').onclick=saveProject;
@@ -2340,7 +2416,7 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 ['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend'].forEach(n=>cropInputLayer.addEventListener(n,e=>{if(cropMode){e.preventDefault();e.stopPropagation()}},{passive:false,capture:true}));
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
-window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();updateUnwrapStatus();
+window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();updateUnwrapStatus();updateEffectiveExportSize();
 applyLanguage(currentLanguage);
 setStatus(tr('ready',{version:VERSION}));
 (function animate(){requestAnimationFrame(animate);orbit.update();updateMeasureLabel();renderer.render(scene,camera)})();
