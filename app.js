@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.22';
+const VERSION='0.2.23';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -91,7 +91,7 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
-  precisionCropNote:'Præcisionssnit: trekanter deles ved klippelinjen, så kanten ikke følger det gamle polygonnet.', preciseCropWorking:'Laver præcisionssnit…', preciseCropFallback:'Præcisionssnittet kunne ikke beregnes for dette område.',
+  precisionCropNote:'Præcisionssnit: frihåndskonturen lukkes automatisk, og trekanter deles ved klippelinjen.', preciseCropWorking:'Laver præcisionssnit…', preciseCropFallback:'Præcisionssnittet kunne ikke beregnes for dette område.',
 
   unwrapSurface:'Udfold overflade', unwrapSelectArea:'Vælg område', unwrapClearArea:'Ryd område', unwrapPreview:'Lav udfoldning', unwrapWholeHeight:'Hele omkredsen og hele højden bruges.', unwrapPreviewHeading:'Forhåndsvisning af udfoldning', unwrapPreviewHelp:'Træk den øverste og nederste kant for at vælge eksportbåndet.', unwrapBandAll:'Bånd: hele højden', unwrapExportBand:'Eksportér valgt bånd', unwrapExportFull:'Eksportér hele udfoldningen', unwrapAreaActive:'Tegn området direkte på modellen.', unwrapAreaChosen:'Område valgt til udfoldning.', unwrapAreaCleared:'Afgrænsning ryddet.',
 
@@ -150,7 +150,7 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
-  precisionCropNote:'Präzisionsschnitt: Dreiecke werden an der Schnittlinie geteilt, damit die Kante nicht dem alten Polygonnetz folgt.', preciseCropWorking:'Präzisionsschnitt wird berechnet…', preciseCropFallback:'Der Präzisionsschnitt konnte für diesen Bereich nicht berechnet werden.',
+  precisionCropNote:'Präzisionsschnitt: Die Freihandkontur wird automatisch geschlossen und die Dreiecke werden an der Schnittlinie geteilt.', preciseCropWorking:'Präzisionsschnitt wird berechnet…', preciseCropFallback:'Der Präzisionsschnitt konnte für diesen Bereich nicht berechnet werden.',
 
   unwrapSurface:'Oberfläche abwickeln', unwrapSelectArea:'Bereich wählen', unwrapClearArea:'Bereich löschen', unwrapPreview:'Abwicklung erstellen', unwrapWholeHeight:'Gesamter Umfang und gesamte Höhe werden verwendet.', unwrapPreviewHeading:'Vorschau der Abwicklung', unwrapPreviewHelp:'Obere und untere Kante ziehen, um den Exportstreifen zu wählen.', unwrapBandAll:'Streifen: gesamte Höhe', unwrapExportBand:'Gewählten Streifen exportieren', unwrapExportFull:'Gesamte Abwicklung exportieren', unwrapAreaActive:'Bereich direkt auf dem Modell zeichnen.', unwrapAreaChosen:'Bereich für die Abwicklung gewählt.', unwrapAreaCleared:'Abgrenzung gelöscht.',
 
@@ -206,7 +206,7 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
-  precisionCropNote:'Precision cut: triangles are split at the cut line so the edge no longer follows the original mesh.', preciseCropWorking:'Creating precision cut…', preciseCropFallback:'The precision cut could not be calculated for this area.',
+  precisionCropNote:'Precision cut: the freehand contour is closed automatically and triangles are split at the cut line.', preciseCropWorking:'Creating precision cut…', preciseCropFallback:'The precision cut could not be calculated for this area.',
 
   unwrapSurface:'Unwrap surface', unwrapSelectArea:'Select area', unwrapClearArea:'Clear area', unwrapPreview:'Create unwrap', unwrapWholeHeight:'Full circumference and full height will be used.', unwrapPreviewHeading:'Unwrap preview', unwrapPreviewHelp:'Drag the upper and lower edges to choose the export band.', unwrapBandAll:'Band: full height', unwrapExportBand:'Export selected band', unwrapExportFull:'Export full unwrap', unwrapAreaActive:'Draw the area directly on the model.', unwrapAreaChosen:'Area selected for unwrap.', unwrapAreaCleared:'Area selection cleared.',
 
@@ -262,7 +262,7 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
-  precisionCropNote:'Coupe de précision : les triangles sont divisés sur la ligne de coupe afin que le bord ne suive plus le maillage d’origine.', preciseCropWorking:'Calcul de la coupe de précision…', preciseCropFallback:'La coupe de précision n’a pas pu être calculée pour cette zone.',
+  precisionCropNote:'Coupe de précision : le contour à main levée est fermé automatiquement et les triangles sont divisés sur la ligne de coupe.', preciseCropWorking:'Calcul de la coupe de précision…', preciseCropFallback:'La coupe de précision n’a pas pu être calculée pour cette zone.',
 
   unwrapSurface:'Dérouler la surface', unwrapSelectArea:'Choisir une zone', unwrapClearArea:'Effacer la zone', unwrapPreview:'Créer le déroulé', unwrapWholeHeight:'Toute la circonférence et toute la hauteur seront utilisées.', unwrapPreviewHeading:'Aperçu du déroulé', unwrapPreviewHelp:'Faites glisser les bords supérieur et inférieur pour choisir la bande à exporter.', unwrapBandAll:'Bande : toute la hauteur', unwrapExportBand:'Exporter la bande sélectionnée', unwrapExportFull:'Exporter tout le déroulé', unwrapAreaActive:'Dessinez la zone directement sur le modèle.', unwrapAreaChosen:'Zone choisie pour le déroulé.', unwrapAreaCleared:'Sélection de zone effacée.',
 
@@ -869,7 +869,8 @@ function cancelCrop(){
 }
 function redrawCrop(){
   const pts=cropPoints.map(p=>`${p.x},${p.y}`).join(' ');
-  cropLine.setAttribute('points',pts);cropPolygon.setAttribute('points',cropPoints.length>=3?pts:'');cropPointsGroup.innerHTML='';
+  const closedPts=cropPoints.length>=3?`${pts} ${cropPoints[0].x},${cropPoints[0].y}`:pts;
+  cropLine.setAttribute('points',closedPts);cropPolygon.setAttribute('points',cropPoints.length>=3?pts:'');cropPointsGroup.innerHTML='';
   for(const p of cropPoints){const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',5);cropPointsGroup.appendChild(c)}
 }
 function pointFromEvent(e){const r=cropInputLayer.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
@@ -1006,15 +1007,59 @@ function cropSubtractConvex(poly,tri,w,h){
 function cropBboxOverlap(a,b){
   return !(a.maxX<b.minX||a.minX>b.maxX||a.maxY<b.minY||a.minY>b.maxY);
 }
-function makeCropClipSpec(poly){
-  const clean=[];
+
+function cropPointLineDistance(p,a,b){
+  const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
+  if(l2<1e-12)return Math.hypot(p.x-a.x,p.y-a.y);
+  let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));
+}
+function cropSimplifyRdp(points,tolerance){
+  if(points.length<=2)return points.slice();
+  let maxD=0,index=0;
+  const a=points[0],b=points[points.length-1];
+  for(let i=1;i<points.length-1;i++){
+    const d=cropPointLineDistance(points[i],a,b);
+    if(d>maxD){maxD=d;index=i}
+  }
+  if(maxD>tolerance){
+    const left=cropSimplifyRdp(points.slice(0,index+1),tolerance);
+    const right=cropSimplifyRdp(points.slice(index),tolerance);
+    return left.slice(0,-1).concat(right);
+  }
+  return [a,b];
+}
+function cropPrepareContour(poly){
+  if(!Array.isArray(poly)||poly.length<3)return null;
+
+  // Remove almost identical neighbouring points first.
+  const dedup=[];
   for(const p of poly){
     const q={x:+p.x,y:+p.y};
-    const last=clean[clean.length-1];
-    if(!last||Math.hypot(q.x-last.x,q.y-last.y)>.25)clean.push(q);
+    const last=dedup[dedup.length-1];
+    if(!last||Math.hypot(q.x-last.x,q.y-last.y)>=1.0)dedup.push(q);
   }
-  if(clean.length>2&&Math.hypot(clean[0].x-clean[clean.length-1].x,clean[0].y-clean[clean.length-1].y)<.25)clean.pop();
+  if(dedup.length<3)return null;
+
+  // Freehand drawing can contain hundreds/thousands of points. Simplify gently
+  // before triangulation. 1.25 screen pixels is visually negligible.
+  let clean=dedup.length>80?cropSimplifyRdp(dedup,1.25):dedup.slice();
+
+  // Explicitly close the contour for display/logic, but triangulateShape wants
+  // the final duplicate removed, so we normalise it back to one unique loop.
   if(clean.length<3)return null;
+  const first=clean[0],last=clean[clean.length-1];
+  if(Math.hypot(first.x-last.x,first.y-last.y)<0.75)clean.pop();
+
+  // If simplification became too aggressive, fall back to deduplicated points.
+  if(clean.length<3)clean=dedup.slice();
+  return clean;
+}
+
+function makeCropClipSpec(poly){
+  const clean=cropPrepareContour(poly);
+  if(!clean||clean.length<3)return null;
 
   const contour=clean.map(p=>new THREE.Vector2(p.x,p.y));
   const faces=THREE.ShapeUtils.triangulateShape(contour,[]);
