@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.21';
+const VERSION='0.2.22';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -91,6 +91,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  precisionCropNote:'Præcisionssnit: trekanter deles ved klippelinjen, så kanten ikke følger det gamle polygonnet.', preciseCropWorking:'Laver præcisionssnit…', preciseCropFallback:'Præcisionssnittet kunne ikke beregnes for dette område.',
+
   unwrapSurface:'Udfold overflade', unwrapSelectArea:'Vælg område', unwrapClearArea:'Ryd område', unwrapPreview:'Lav udfoldning', unwrapWholeHeight:'Hele omkredsen og hele højden bruges.', unwrapPreviewHeading:'Forhåndsvisning af udfoldning', unwrapPreviewHelp:'Træk den øverste og nederste kant for at vælge eksportbåndet.', unwrapBandAll:'Bånd: hele højden', unwrapExportBand:'Eksportér valgt bånd', unwrapExportFull:'Eksportér hele udfoldningen', unwrapAreaActive:'Tegn området direkte på modellen.', unwrapAreaChosen:'Område valgt til udfoldning.', unwrapAreaCleared:'Afgrænsning ryddet.',
 
   friezeReady:'Frisen er klar', friezeReadyText:'Vælg hvordan det udfoldede billede skal gemmes.', friezeSavePng:'Gem PNG', friezeShare:'Del / Gem til Fotos', friezeClose:'Luk', friezePrepared:'Frisen er klar til at blive gemt.',
@@ -148,6 +150,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  precisionCropNote:'Präzisionsschnitt: Dreiecke werden an der Schnittlinie geteilt, damit die Kante nicht dem alten Polygonnetz folgt.', preciseCropWorking:'Präzisionsschnitt wird berechnet…', preciseCropFallback:'Der Präzisionsschnitt konnte für diesen Bereich nicht berechnet werden.',
+
   unwrapSurface:'Oberfläche abwickeln', unwrapSelectArea:'Bereich wählen', unwrapClearArea:'Bereich löschen', unwrapPreview:'Abwicklung erstellen', unwrapWholeHeight:'Gesamter Umfang und gesamte Höhe werden verwendet.', unwrapPreviewHeading:'Vorschau der Abwicklung', unwrapPreviewHelp:'Obere und untere Kante ziehen, um den Exportstreifen zu wählen.', unwrapBandAll:'Streifen: gesamte Höhe', unwrapExportBand:'Gewählten Streifen exportieren', unwrapExportFull:'Gesamte Abwicklung exportieren', unwrapAreaActive:'Bereich direkt auf dem Modell zeichnen.', unwrapAreaChosen:'Bereich für die Abwicklung gewählt.', unwrapAreaCleared:'Abgrenzung gelöscht.',
 
   friezeReady:'Der Fries ist fertig', friezeReadyText:'Wählen Sie, wie das abgewickelte Bild gespeichert werden soll.', friezeSavePng:'PNG speichern', friezeShare:'Teilen / In Fotos sichern', friezeClose:'Schließen', friezePrepared:'Der Fries kann jetzt gespeichert werden.',
@@ -202,6 +206,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  precisionCropNote:'Precision cut: triangles are split at the cut line so the edge no longer follows the original mesh.', preciseCropWorking:'Creating precision cut…', preciseCropFallback:'The precision cut could not be calculated for this area.',
+
   unwrapSurface:'Unwrap surface', unwrapSelectArea:'Select area', unwrapClearArea:'Clear area', unwrapPreview:'Create unwrap', unwrapWholeHeight:'Full circumference and full height will be used.', unwrapPreviewHeading:'Unwrap preview', unwrapPreviewHelp:'Drag the upper and lower edges to choose the export band.', unwrapBandAll:'Band: full height', unwrapExportBand:'Export selected band', unwrapExportFull:'Export full unwrap', unwrapAreaActive:'Draw the area directly on the model.', unwrapAreaChosen:'Area selected for unwrap.', unwrapAreaCleared:'Area selection cleared.',
 
   friezeReady:'Frieze is ready', friezeReadyText:'Choose how to save the unwrapped image.', friezeSavePng:'Save PNG', friezeShare:'Share / Save to Photos', friezeClose:'Close', friezePrepared:'The frieze is ready to save.',
@@ -256,6 +262,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  precisionCropNote:'Coupe de précision : les triangles sont divisés sur la ligne de coupe afin que le bord ne suive plus le maillage d’origine.', preciseCropWorking:'Calcul de la coupe de précision…', preciseCropFallback:'La coupe de précision n’a pas pu être calculée pour cette zone.',
+
   unwrapSurface:'Dérouler la surface', unwrapSelectArea:'Choisir une zone', unwrapClearArea:'Effacer la zone', unwrapPreview:'Créer le déroulé', unwrapWholeHeight:'Toute la circonférence et toute la hauteur seront utilisées.', unwrapPreviewHeading:'Aperçu du déroulé', unwrapPreviewHelp:'Faites glisser les bords supérieur et inférieur pour choisir la bande à exporter.', unwrapBandAll:'Bande : toute la hauteur', unwrapExportBand:'Exporter la bande sélectionnée', unwrapExportFull:'Exporter tout le déroulé', unwrapAreaActive:'Dessinez la zone directement sur le modèle.', unwrapAreaChosen:'Zone choisie pour le déroulé.', unwrapAreaCleared:'Sélection de zone effacée.',
 
   friezeReady:'La frise est prête', friezeReadyText:'Choisissez comment enregistrer l’image déroulée.', friezeSavePng:'Enregistrer PNG', friezeShare:'Partager / Enregistrer dans Photos', friezeClose:'Fermer', friezePrepared:'La frise est prête à être enregistrée.',
@@ -362,7 +370,7 @@ function applyLanguage(lang){
   $('lockButton').textContent=selectedModel?.root.userData.locked?tr('unlock'):tr('lock');
 
   setText('cropHeading','crop');setText('cropHelp','cropHelp');setText('freehandCropButton','freehand');setText('polygonCropButton','polygon');
-  setText('startCropButton','startCrop');setText('cancelCropButton','cancel');setText('cropInsideButton','keepInside');setText('cropOutsideButton','removeInside');setText('cropNote','cropNote');
+  setText('startCropButton','startCrop');setText('cancelCropButton','cancel');setText('cropInsideButton','keepInside');setText('cropOutsideButton','removeInside');setText('cropNote','cropNote');setText('precisionCropNote','precisionCropNote');
 
   setText('savedViewsHeading','savedViews');setText('saveViewButton','saveView');setText('clearViewsButton','clearViews');
   setText('measureHeading','measure');setText('measureButton','measureDistance');setText('clearMeasureButton','clearMeasure');
@@ -914,26 +922,256 @@ function screenPoint(v){
   const r=renderer.domElement.getBoundingClientRect(),p=v.clone().project(camera);
   return{x:(p.x*.5+.5)*r.width,y:(-p.y*.5+.5)*r.height};
 }
-function cropGeometry(mesh,poly,keepInside){
-  const g=mesh.geometry,pos=g.attributes?.position;if(!pos)return;
-  const idx=g.index?Array.from(g.index.array):Array.from({length:pos.count},(_,i)=>i);
-  mesh.updateWorldMatrix(true,false);
-  const kept=[],a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),cent=new THREE.Vector3();
-  for(let i=0;i+2<idx.length;i+=3){
-    a.fromBufferAttribute(pos,idx[i]).applyMatrix4(mesh.matrixWorld);
-    b.fromBufferAttribute(pos,idx[i+1]).applyMatrix4(mesh.matrixWorld);
-    c.fromBufferAttribute(pos,idx[i+2]).applyMatrix4(mesh.matrixWorld);
-    cent.copy(a).add(b).add(c).multiplyScalar(1/3);
-    const inside=inPolygon(screenPoint(cent),poly);
-    if(keepInside?inside:!inside)kept.push(idx[i],idx[i+1],idx[i+2]);
+
+function cropScreenLine(a,b){
+  const dx=b.x-a.x,dy=b.y-a.y;
+  return {A:-dy,B:dx,C:dy*a.x-dx*a.y};
+}
+function cropVertexScreen(v,w,h){
+  const c=v.clip,iw=Math.abs(c.w)>1e-12?1/c.w:0;
+  return {x:(c.x*iw*.5+.5)*w,y:(-c.y*iw*.5+.5)*h};
+}
+function cropHomLine(v,line,w,h){
+  const c=v.clip;
+  const sx=(.5*c.x+.5*c.w)*w;
+  const sy=(-.5*c.y+.5*c.w)*h;
+  return line.A*sx+line.B*sy+line.C*c.w;
+}
+function cropLerpVertex(a,b,t){
+  const attrs={};
+  for(const name of Object.keys(a.attrs)){
+    const av=a.attrs[name],bv=b.attrs[name],out=new Array(av.length);
+    for(let i=0;i<av.length;i++)out[i]=av[i]+(bv[i]-av[i])*t;
+    if(name==='normal'&&out.length>=3){
+      const len=Math.hypot(out[0],out[1],out[2])||1;
+      out[0]/=len;out[1]/=len;out[2]/=len;
+    }else if(name==='tangent'&&out.length>=3){
+      const len=Math.hypot(out[0],out[1],out[2])||1;
+      out[0]/=len;out[1]/=len;out[2]/=len;
+      if(out.length>3)out[3]=t<.5?av[3]:bv[3];
+    }
+    attrs[name]=out;
   }
-  g.setIndex(kept);g.computeBoundingBox();g.computeBoundingSphere();
+  return {
+    attrs,
+    clip:new THREE.Vector4(
+      a.clip.x+(b.clip.x-a.clip.x)*t,
+      a.clip.y+(b.clip.y-a.clip.y)*t,
+      a.clip.z+(b.clip.z-a.clip.z)*t,
+      a.clip.w+(b.clip.w-a.clip.w)*t
+    )
+  };
+}
+function cropClipHalfPlane(poly,line,orient,keepInside,w,h){
+  if(poly.length<3)return [];
+  const out=[],eps=1e-7;
+  let s=poly[poly.length-1],ds=orient*cropHomLine(s,line,w,h);
+  for(const e of poly){
+    const de=orient*cropHomLine(e,line,w,h);
+    const sin=keepInside?ds>=-eps:ds<=eps;
+    const ein=keepInside?de>=-eps:de<=eps;
+    if(ein){
+      if(!sin){
+        const den=ds-de,t=Math.abs(den)<1e-20?.5:ds/den;
+        out.push(cropLerpVertex(s,e,Math.max(0,Math.min(1,t))));
+      }
+      out.push(e);
+    }else if(sin){
+      const den=ds-de,t=Math.abs(den)<1e-20?.5:ds/den;
+      out.push(cropLerpVertex(s,e,Math.max(0,Math.min(1,t))));
+    }
+    s=e;ds=de;
+  }
+  return out;
+}
+function cropIntersectConvex(poly,tri,w,h){
+  let p=poly;
+  for(const edge of tri.edges){
+    p=cropClipHalfPlane(p,edge.line,tri.orient,true,w,h);
+    if(p.length<3)return [];
+  }
+  return p;
+}
+function cropSubtractConvex(poly,tri,w,h){
+  let candidate=poly;
+  const outside=[];
+  for(const edge of tri.edges){
+    if(candidate.length<3)break;
+    const out=cropClipHalfPlane(candidate,edge.line,tri.orient,false,w,h);
+    if(out.length>=3)outside.push(out);
+    candidate=cropClipHalfPlane(candidate,edge.line,tri.orient,true,w,h);
+  }
+  return outside;
+}
+function cropBboxOverlap(a,b){
+  return !(a.maxX<b.minX||a.minX>b.maxX||a.maxY<b.minY||a.minY>b.maxY);
+}
+function makeCropClipSpec(poly){
+  const clean=[];
+  for(const p of poly){
+    const q={x:+p.x,y:+p.y};
+    const last=clean[clean.length-1];
+    if(!last||Math.hypot(q.x-last.x,q.y-last.y)>.25)clean.push(q);
+  }
+  if(clean.length>2&&Math.hypot(clean[0].x-clean[clean.length-1].x,clean[0].y-clean[clean.length-1].y)<.25)clean.pop();
+  if(clean.length<3)return null;
+
+  const contour=clean.map(p=>new THREE.Vector2(p.x,p.y));
+  const faces=THREE.ShapeUtils.triangulateShape(contour,[]);
+  if(!faces?.length)return null;
+
+  const tris=[];
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const p of clean){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
+  for(const f of faces){
+    const a=clean[f[0]],b=clean[f[1]],c=clean[f[2]];
+    const area=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+    if(Math.abs(area)<1e-8)continue;
+    const tri={
+      orient:area>=0?1:-1,
+      bbox:{minX:Math.min(a.x,b.x,c.x),minY:Math.min(a.y,b.y,c.y),maxX:Math.max(a.x,b.x,c.x),maxY:Math.max(a.y,b.y,c.y)},
+      edges:[{line:cropScreenLine(a,b)},{line:cropScreenLine(b,c)},{line:cropScreenLine(c,a)}]
+    };
+    tris.push(tri);
+  }
+  if(!tris.length)return null;
+
+  const cell=96,grid=new Map();
+  for(let ti=0;ti<tris.length;ti++){
+    const b=tris[ti].bbox;
+    const x0=Math.floor(b.minX/cell),x1=Math.floor(b.maxX/cell),y0=Math.floor(b.minY/cell),y1=Math.floor(b.maxY/cell);
+    for(let gy=y0;gy<=y1;gy++)for(let gx=x0;gx<=x1;gx++){
+      const k=gx+','+gy;
+      if(!grid.has(k))grid.set(k,[]);
+      grid.get(k).push(ti);
+    }
+  }
+  return {poly:clean,tris,global:{minX,minY,maxX,maxY},cell,grid};
+}
+function cropCandidateTris(spec,bbox){
+  if(!cropBboxOverlap(spec.global,bbox))return [];
+  const ids=new Set(),cell=spec.cell;
+  const x0=Math.floor(bbox.minX/cell),x1=Math.floor(bbox.maxX/cell),y0=Math.floor(bbox.minY/cell),y1=Math.floor(bbox.maxY/cell);
+  for(let gy=y0;gy<=y1;gy++)for(let gx=x0;gx<=x1;gx++){
+    const arr=spec.grid.get(gx+','+gy);
+    if(arr)for(const id of arr)if(cropBboxOverlap(spec.tris[id].bbox,bbox))ids.add(id);
+  }
+  return [...ids].map(i=>spec.tris[i]);
+}
+function cropAttrValue(attr,index){
+  const out=[];
+  if(attr.itemSize>0)out.push(attr.getX(index));
+  if(attr.itemSize>1)out.push(attr.getY(index));
+  if(attr.itemSize>2)out.push(attr.getZ(index));
+  if(attr.itemSize>3)out.push(attr.getW(index));
+  for(let i=4;i<attr.itemSize;i++)out.push(attr.array[index*attr.itemSize+i]);
+  return out;
+}
+function cropTriangleMaterialIndex(g,indexOffset){
+  for(const group of g.groups||[])if(indexOffset>=group.start&&indexOffset<group.start+group.count)return group.materialIndex||0;
+  return 0;
+}
+function cropEmitPolygon(poly,bucket,attrNames){
+  if(poly.length<3)return;
+  for(let i=1;i+1<poly.length;i++){
+    const vs=[poly[0],poly[i],poly[i+1]];
+    for(const v of vs)for(const name of attrNames)bucket[name].push(...v.attrs[name]);
+  }
+}
+function cropGeometry(mesh,spec,keepInside){
+  const g=mesh.geometry,pos=g.attributes?.position;if(!pos||!spec)return false;
+  const idx=g.index?Array.from(g.index.array):Array.from({length:pos.count},(_,i)=>i);
+  const attrNames=Object.keys(g.attributes);
+  if(!attrNames.includes('position'))return false;
+
+  mesh.updateWorldMatrix(true,false);
+  camera.updateMatrixWorld(true);
+  const mvp=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).multiply(mesh.matrixWorld);
+  const rect=renderer.domElement.getBoundingClientRect(),w=rect.width,h=rect.height;
+  const cache=new Map();
+
+  function vertexAt(index){
+    if(cache.has(index))return cache.get(index);
+    const attrs={};
+    for(const name of attrNames)attrs[name]=cropAttrValue(g.attributes[name],index);
+    const p=attrs.position;
+    const clip=new THREE.Vector4(p[0],p[1],p[2],1).applyMatrix4(mvp);
+    const v={attrs,clip};cache.set(index,v);return v;
+  }
+
+  const buckets=new Map();
+  function bucketFor(mi){
+    if(!buckets.has(mi)){
+      const b={};for(const name of attrNames)b[name]=[];
+      buckets.set(mi,b);
+    }
+    return buckets.get(mi);
+  }
+
+  let produced=0;
+  for(let io=0;io+2<idx.length;io+=3){
+    const tri=[vertexAt(idx[io]),vertexAt(idx[io+1]),vertexAt(idx[io+2])];
+    const sp=tri.map(v=>cropVertexScreen(v,w,h));
+    const bbox={minX:Math.min(sp[0].x,sp[1].x,sp[2].x),minY:Math.min(sp[0].y,sp[1].y,sp[2].y),maxX:Math.max(sp[0].x,sp[1].x,sp[2].x),maxY:Math.max(sp[0].y,sp[1].y,sp[2].y)};
+    const clips=cropCandidateTris(spec,bbox);
+    const mi=cropTriangleMaterialIndex(g,io),bucket=bucketFor(mi);
+
+    if(!clips.length){
+      if(!keepInside){cropEmitPolygon(tri,bucket,attrNames);produced++}
+      continue;
+    }
+
+    if(keepInside){
+      for(const ct of clips){
+        const p=cropIntersectConvex(tri,ct,w,h);
+        if(p.length>=3){cropEmitPolygon(p,bucket,attrNames);produced++}
+      }
+    }else{
+      let fragments=[tri];
+      for(const ct of clips){
+        const next=[];
+        for(const frag of fragments)next.push(...cropSubtractConvex(frag,ct,w,h));
+        fragments=next;
+        if(!fragments.length)break;
+      }
+      for(const p of fragments)if(p.length>=3){cropEmitPolygon(p,bucket,attrNames);produced++}
+    }
+  }
+
+  const newG=new THREE.BufferGeometry();
+  const combined={};for(const name of attrNames)combined[name]=[];
+  let start=0;
+  for(const [mi,b] of buckets){
+    const count=b.position.length/3;
+    if(!count)continue;
+    for(const name of attrNames)combined[name].push(...b[name]);
+    newG.addGroup(start,count,mi);start+=count;
+  }
+  if(!start){
+    for(const name of attrNames){
+      const old=g.attributes[name];
+      newG.setAttribute(name,new THREE.Float32BufferAttribute([],old.itemSize));
+    }
+  }else{
+    for(const name of attrNames){
+      const old=g.attributes[name];
+      newG.setAttribute(name,new THREE.Float32BufferAttribute(combined[name],old.itemSize));
+    }
+  }
+  newG.userData={...g.userData};
+  newG.computeBoundingBox();newG.computeBoundingSphere();
+  const oldGeo=mesh.geometry;mesh.geometry=newG;oldGeo.dispose();
+  return true;
 }
 function applyCrop(keepInside){
   if(!selectedEditable()||cropPoints.length<3)return;
+  const spec=makeCropClipSpec(cropPoints);
+  if(!spec){setStatus(tr('preciseCropFallback'));return}
+  setStatus(tr('preciseCropWorking'));
   const original=selectedModel,clone=original.root.clone(true);
   clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry=o.geometry.clone()});
-  clone.traverse(o=>{if(o.isMesh)cropGeometry(o,cropPoints,keepInside)});
+  clone.updateMatrixWorld(true);
+  clone.traverse(o=>{if(o.isMesh)cropGeometry(o,spec,keepInside)});
   const originalWasVisible=original.root.visible;
   original.root.visible=false;
   const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true,frame:false});

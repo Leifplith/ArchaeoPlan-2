@@ -125,3 +125,12 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Øvre og nedre kant på eksportbånd kan trækkes.
 - Valgt bånd eller hele udfoldningen kan eksporteres.
 - Originale UV-koordinater og teksturer bevares; højopløsnings-eksport er fortsat flisebaseret.
+
+## v0.2.22 — præcisionsbeskæring
+- Beskæring vælger ikke længere kun hele mesh-trekanter til/fra.
+- Polygonen/frihåndslinjen trianguleres i skærmplanet, og de mesh-trekanter der rammes af grænsen splittes geometrisk.
+- Nye skæringspunkter får interpolerede positioner, UV-koordinater, normaler, farver og øvrige vertex-attributter.
+- Teksturen kan derfor fortsætte helt frem til den nye, præcise kant.
+- Både **Behold indenfor** og **Fjern indenfor** bruger den nye motor.
+- Originalmodellen bevares fortsat urørt; resultatet er en ny kopi.
+- Resten af beskæringsarbejdsgangen (frihånd/polygon, undo/redo) er bevaret.
