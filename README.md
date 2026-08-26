@@ -134,3 +134,90 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Både **Behold indenfor** og **Fjern indenfor** bruger den nye motor.
 - Originalmodellen bevares fortsat urørt; resultatet er en ny kopi.
 - Resten af beskæringsarbejdsgangen (frihånd/polygon, undo/redo) er bevaret.
+
+## v0.2.23 — lukket og optimeret frihåndskontur
+- Frihåndskonturen vises og behandles nu som en lukket polygon.
+- Før præcisionssnittet fjernes næsten identiske punkter.
+- Meget tætte frihåndslinjer forenkles forsigtigt med ca. 1,25 skærmpixels tolerance før triangulering.
+- Det reducerer kraftigt risikoen for at Safari/iPad går i stå ved **Behold indenfor** / **Fjern indenfor**.
+- Selve den præcise trekantsplitting og UV-interpolation fra v0.2.22 er bevaret.
+
+## v0.2.24 — lås polygon før præcisionssnit
+- **Behold indenfor** og **Fjern indenfor** afslutter nu frihåndstegningen med det samme.
+- Aktiv pointer/pen frigives, så man ikke kan fortsætte med at tegne under beregningen.
+- Polygonen normaliseres, lukkes og vises låst før beregningen starter.
+- Safari/iPad får en render-frame til at vise den lukkede polygon, før den tunge geometrioperation begynder.
+- Status vises nu i trin: lukker/låser polygon → forbereder polygon → beregner præcisionssnit → opbygger beskåret model.
+- Meshes behandles enkeltvis med små yields mellem dem for at mindske risikoen for, at brugerfladen ser fastfrosset ud.
+- Den præcise trekantsplitting og UV-interpolation fra v0.2.22/23 er bevaret.
+
+## v0.2.25 — kantbaseret præcisionssnit
+- Den tunge polygon-Boolean fra v0.2.22–0.2.24 er erstattet.
+- Hele trekanter klassificeres hurtigt som indenfor/udenfor og kopieres eller fjernes direkte.
+- Kun trekanter, hvis skærmprojektion rammes af polygonens kant, går gennem den dyre geometriske splitting.
+- Polygonens kanter ligger i et simpelt 96 px spatialt grid, så hver mesh-trekant kun undersøger nærliggende kantsegmenter.
+- Nye snitpunkter interpolerer fortsat UV, normaler, vertexfarver og øvrige vertex-attributter.
+- Status viser mesh-fremdrift under beregningen.
+- Målet er markant kortere beregningstid på tætte fotogrammetrimodeller.
+
+## v0.2.26 — fejlrettelse i polygonlåsning
+- Kritisk fejl rettet: v0.2.25 kaldte `finalizeCropContour()` og `finishCropAfterCalculation()`, men funktionerne var ved en fejl blevet fjernet under udskiftningen af snitmotoren.
+- Det forklarede præcist, hvorfor programmet stoppede ved **Lukker og låser polygon…** uden at gå videre.
+- Polygonen låses nu uden geometriarbejde.
+- Browseren får derefter en frame til at vise den lukkede polygon.
+- Konturen forberedes bagefter med lineær udtynding og højst 1200 arbejds-punkter.
+- Den kantbaserede præcisionsmotor fra v0.2.25 er bevaret.
+
+## v0.2.27 — discard-first præcisionsbeskæring
+- Beskæringsmotoren følger nu den ønskede pipeline:
+  1. Trekanter sikkert på den forkerte side kasseres straks.
+  2. Trekanter sikkert på den rigtige side beholdes urørte.
+  3. Kun trekanter som rammer/straddler polygonkanten sendes til præcisionssplitting.
+  4. Nye fragmenter klassificeres igen, og fragmenter på den forkerte side kasseres.
+  5. Bevarede hele trekanter og nye kanttrekanter samles til den færdige mesh.
+- Klassifikation bruger alle tre hjørner plus kontrol for kantkrydsning.
+- Den dyre splitfunktion kaldes derfor kun i et smalt bælte langs den tegnede linje.
+- Status viser antal kanttrekanter pr. mesh under beregningen.
+
+## v0.2.28 — rigtig beregningslås og afbrydelig beskæring
+- Ny global `cropCalculating`-tilstand.
+- Når Behold/Fjern er valgt, deaktiveres Frihånd, Polygon, Start, Behold og Fjern.
+- **Annullér** bliver til **Stop beregning** og forbliver aktiv.
+- Tegne-input ignoreres helt under beregningen.
+- Præcisionsmotoren giver Safari kontrollen tilbage for hver ca. 2.000 trekanter.
+- Derfor kan en lang beregning nu faktisk stoppes, også når modellen består af én stor mesh.
+- Status viser løbende antal behandlede trekanter.
+- Ved stop bortskaffes arbejdskopiens geometri, originalmodellen berøres ikke.
+
+## v0.2.29 — fejlrettelse: manglende skærmpunkter
+- Fejlen `undefined is not an object (evaluating 'p.x')` er rettet.
+- Årsagen var, at nye interpolerede vertices fra præcisionssplittingen ikke fik deres `_screen`-koordinat med videre.
+- `cropLerpVertex()` interpolerer nu også skærmpositionen.
+- Kant-/trekanttests er gjort defensive over for manglende eller ikke-endelige koordinater.
+- En degenereret kant eller projektion kan derfor ikke længere vælte hele beskæringen.
+
+## v0.2.30 — sikker kant-splitting og bevar markering ved fejl
+- Alle fragment-skærmpositioner valideres nu gennem `cropSafeScreen()`.
+- Bounding boxes bygges kun af gyldige skærmpunkter.
+- Direkte `p.x`/`p.y`-adgang i den sårbare kant-splitting er fjernet.
+- Ugyldige/degenererede fragmenter springes over i stedet for at stoppe hele beskæringen.
+- Hvis præcisionssnittet fejler, bliver den tegnede polygon stående og beskæringstilstanden genåbnes.
+- Originalmodellen berøres fortsat ikke ved fejl.
+
+## v0.2.31 — stack-safe mesh-samling
+- Sandsynlig hovedårsag til `Maximum call stack size exceeded` rettet.
+- Den nye beskårne mesh blev tidligere samlet med `array.push(...meget_stort_array)`.
+- På store Scaniverse-modeller kan spread af hundredtusinder/millioner værdier overskride JavaScripts call stack.
+- Output-attributter bygges nu direkte i forudallokerede `Float32Array`-buffere uden spread.
+- `cropSafeBBox()` bruger også iterative min/max-beregninger uden `Math.min(...stort_array)`.
+- Ved en snitfejl bevares polygonen synligt **og låst**; tegning kan ikke fortsættes.
+- Man kan enten prøve Behold/Fjern igen på samme polygon eller trykke Annullér og starte forfra.
+
+## v0.2.32-clean — kodeoprydning
+- Oprydningsversion baseret direkte på den fungerende v0.2.31.
+- Ingen tilsigtede ændringer i funktionalitet eller brugerflade.
+- Den fungerende præcisionsbeskæring er bevaret uændret.
+- Gamle/ubrugte hjælpefunktioner fra tidligere beskæringsforsøg er fjernet, hvor de ikke længere havde aktive kald.
+- Overflødige statusnøgler og kommentarer er ryddet op.
+- Cache-busting og versionsnumre er opdateret.
+- JavaScript-syntaks, dublerede navngivne funktioner og ZIP-indhold er kontrolleret.
