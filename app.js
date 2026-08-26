@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.26';
+const VERSION='0.2.27';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -1061,48 +1061,73 @@ function cropClipByPolygonEdge(polyVerts,edge,keepLeft,screenFn){
   return out;
 }
 function cropTrianglePrecise(tri,sp,spec,keepInside,edges){
-  const centroid={x:(sp[0].x+sp[1].x+sp[2].x)/3,y:(sp[0].y+sp[1].y+sp[2].y)/3};
-  const centerInside=inPolygon(centroid,spec.poly);
-
-  // Fast path: if no boundary segment touches the triangle, keep/discard whole triangle.
-  let boundaryHits=false;
-  outer: for(const e of edges){
-    for(let k=0;k<3;k++){
-      if(cropSegIntersect(sp[k],sp[(k+1)%3],e.a,e.b)){boundaryHits=true;break outer}
-    }
-    if(cropPointInTri(e.a,sp[0],sp[1],sp[2])||cropPointInTri(e.b,sp[0],sp[1],sp[2])){boundaryHits=true;break}
-  }
-  if(!boundaryHits){
-    return (keepInside?centerInside:!centerInside)?[tri]:[];
-  }
-
-  // Boundary triangle: split only against nearby polygon edges.
-  // We iteratively split fragments by each intersecting boundary line, then classify fragment centroids.
+  // This function is called only for triangles touching/straddling the boundary.
+  // Split against nearby polygon edges, then classify the resulting fragments.
   let fragments=[tri];
   const screenFn=v=>v._screen;
+
   for(const e of edges){
     const next=[];
     for(const frag of fragments){
       const fs=frag.map(v=>v._screen);
-      const bb={minX:Math.min(...fs.map(p=>p.x)),minY:Math.min(...fs.map(p=>p.y)),maxX:Math.max(...fs.map(p=>p.x)),maxY:Math.max(...fs.map(p=>p.y))};
-      if(e.maxX<bb.minX||e.minX>bb.maxX||e.maxY<bb.minY||e.minY>bb.maxY){next.push(frag);continue}
+      const bb={
+        minX:Math.min(...fs.map(p=>p.x)),
+        minY:Math.min(...fs.map(p=>p.y)),
+        maxX:Math.max(...fs.map(p=>p.x)),
+        maxY:Math.max(...fs.map(p=>p.y))
+      };
+      if(e.maxX<bb.minX||e.minX>bb.maxX||e.maxY<bb.minY||e.minY>bb.maxY){
+        next.push(frag);continue;
+      }
       const left=cropClipByPolygonEdge(frag,e,true,screenFn);
       const right=cropClipByPolygonEdge(frag,e,false,screenFn);
       if(left.length>=3)next.push(left);
       if(right.length>=3)next.push(right);
     }
     fragments=next;
-    if(fragments.length>48)break; // safety against pathological self-intersections
+    if(!fragments.length)break;
+    if(fragments.length>48)break;
   }
+
   const out=[];
   for(const frag of fragments){
     const pts=frag.map(v=>v._screen);
-    const c={x:pts.reduce((s,p)=>s+p.x,0)/pts.length,y:pts.reduce((s,p)=>s+p.y,0)/pts.length};
+    const c={
+      x:pts.reduce((s,p)=>s+p.x,0)/pts.length,
+      y:pts.reduce((s,p)=>s+p.y,0)/pts.length
+    };
     const inside=inPolygon(c,spec.poly);
     if(keepInside?inside:!inside)out.push(frag);
   }
   return out;
 }
+
+function cropTriangleEdgeHits(sp,edges){
+  for(const e of edges){
+    for(let k=0;k<3;k++){
+      if(cropSegIntersect(sp[k],sp[(k+1)%3],e.a,e.b))return true;
+    }
+    if(cropPointInTri(e.a,sp[0],sp[1],sp[2])||cropPointInTri(e.b,sp[0],sp[1],sp[2]))return true;
+  }
+  return false;
+}
+function cropClassifyTriangle(sp,spec,edges){
+  const inside0=inPolygon(sp[0],spec.poly);
+  const inside1=inPolygon(sp[1],spec.poly);
+  const inside2=inPolygon(sp[2],spec.poly);
+
+  if(!edges.length){
+    if(inside0&&inside1&&inside2)return 1;       // safely inside
+    if(!inside0&&!inside1&&!inside2)return -1;  // safely outside
+    return 0;
+  }
+
+  if(cropTriangleEdgeHits(sp,edges))return 0;
+  if(inside0&&inside1&&inside2)return 1;
+  if(!inside0&&!inside1&&!inside2)return -1;
+  return 0;
+}
+
 function cropGeometry(mesh,spec,keepInside){
   const g=mesh.geometry,pos=g.attributes?.position;if(!pos||!spec)return false;
   const idx=g.index?Array.from(g.index.array):Array.from({length:pos.count},(_,i)=>i);
@@ -1116,32 +1141,48 @@ function cropGeometry(mesh,spec,keepInside){
   function vertexAt(index){
     if(cache.has(index))return cache.get(index);
     const attrs={};for(const name of attrNames)attrs[name]=cropAttrValue(g.attributes[name],index);
-    const v={attrs};v._screen=cropScreenOfLocalPosition(attrs.position,mvp,w,h);cache.set(index,v);return v;
+    const v={attrs};v._screen=cropScreenOfLocalPosition(attrs.position,mvp,w,h);v._sourceIndex=index;
+    cache.set(index,v);return v;
   }
 
   const buckets=new Map();
   function bucketFor(mi){
-    if(!buckets.has(mi)){const b={};for(const name of attrNames)b[name]=[];buckets.set(mi,b)}
+    if(!buckets.has(mi)){
+      const b={};for(const name of attrNames)b[name]=[];
+      buckets.set(mi,b);
+    }
     return buckets.get(mi);
   }
 
-  let boundaryCount=0;
+  let keptWhole=0,droppedWhole=0,boundaryCount=0;
   for(let io=0;io+2<idx.length;io+=3){
     const tri=[vertexAt(idx[io]),vertexAt(idx[io+1]),vertexAt(idx[io+2])];
     const sp=tri.map(v=>v._screen);
-    const bbox={minX:Math.min(sp[0].x,sp[1].x,sp[2].x),minY:Math.min(sp[0].y,sp[1].y,sp[2].y),maxX:Math.max(sp[0].x,sp[1].x,sp[2].x),maxY:Math.max(sp[0].y,sp[1].y,sp[2].y)};
+    const bbox={
+      minX:Math.min(sp[0].x,sp[1].x,sp[2].x),
+      minY:Math.min(sp[0].y,sp[1].y,sp[2].y),
+      maxX:Math.max(sp[0].x,sp[1].x,sp[2].x),
+      maxY:Math.max(sp[0].y,sp[1].y,sp[2].y)
+    };
     const edges=cropCandidateEdges(spec,bbox);
+    const cls=cropClassifyTriangle(sp,spec,edges);
     const mi=cropTriangleMaterialIndex(g,io),bucket=bucketFor(mi);
 
-    if(!edges.length){
-      const centroid={x:(sp[0].x+sp[1].x+sp[2].x)/3,y:(sp[0].y+sp[1].y+sp[2].y)/3};
-      const inside=inPolygon(centroid,spec.poly);
-      if(keepInside?inside:!inside)cropEmitTriangle(tri[0],tri[1],tri[2],bucket,attrNames);
+    // Fast discard/keep path. No splitting, no fragment reconstruction.
+    if(cls===1){
+      if(keepInside){cropEmitTriangle(tri[0],tri[1],tri[2],bucket,attrNames);keptWhole++}
+      else droppedWhole++;
+      continue;
+    }
+    if(cls===-1){
+      if(!keepInside){cropEmitTriangle(tri[0],tri[1],tri[2],bucket,attrNames);keptWhole++}
+      else droppedWhole++;
       continue;
     }
 
+    // Only ambiguous/boundary triangles reach precision splitting.
+    boundaryCount++;
     const result=cropTrianglePrecise(tri,sp,spec,keepInside,edges);
-    if(result.length!==1||result[0]!==tri)boundaryCount++;
     for(const frag of result)cropEmitPoly(frag,bucket,attrNames);
   }
 
@@ -1153,14 +1194,19 @@ function cropGeometry(mesh,spec,keepInside){
     for(const name of attrNames)combined[name].push(...b[name]);
     newG.addGroup(start,count,mi);start+=count;
   }
+
   for(const name of attrNames){
     const old=g.attributes[name];
     newG.setAttribute(name,new THREE.Float32BufferAttribute(combined[name],old.itemSize));
   }
   newG.userData={...g.userData};
   newG.computeBoundingBox();newG.computeBoundingSphere();
-  const oldGeo=mesh.geometry;mesh.geometry=newG;oldGeo.dispose();
-  mesh.userData.precisionBoundaryTriangles=boundaryCount;
+
+  const oldGeo=mesh.geometry;
+  mesh.geometry=newG;
+  oldGeo.dispose();
+
+  mesh.userData.precisionStats={keptWhole,droppedWhole,boundaryCount};
   return true;
 }
 
@@ -1246,7 +1292,8 @@ async function applyCrop(keepInside){
   clone.traverse(o=>{if(o.isMesh)meshes.push(o)});
   for(let i=0;i<meshes.length;i++){
     cropGeometry(meshes[i],spec,keepInside);
-    setStatus(`${tr('cropSplitting')} ${i+1}/${meshes.length}`);
+    const st=meshes[i].userData.precisionStats||{};
+    setStatus(`${tr('cropSplitting')} ${i+1}/${meshes.length} · kant: ${st.boundaryCount||0}`);
     await new Promise(r=>setTimeout(r,0));
   }
 
