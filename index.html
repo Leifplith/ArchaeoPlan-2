@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.34</title>
-  <link rel="stylesheet" href="style.css?v=0.2.34">
+  <title>ArchaeoPlan v0.2.35</title>
+  <link rel="stylesheet" href="style.css?v=0.2.35">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.34</span>
+      <span class="version">v0.2.35</span>
     </div>
     <div class="header-actions">
 
@@ -142,66 +142,80 @@
       <p id="measureResult" class="muted small">Ingen måling.</p>
     </section>
 
+    
     <section>
-      <h2 id="exportHeading">Eksport-ramme</h2>
-      <div class="field-grid two">
-        <label>Format
-          <select id="exportRatio">
-            <option value="screen">Skærmformat</option>
-            <option value="1.5">3:2</option>
-            <option value="1.3333333333">4:3</option>
-            <option value="1">1:1</option>
-            <option value="1.41421356237">A-format liggende</option>
-            <option value="0.70710678118">A-format stående</option>
-            <option value="custom">Frit format</option>
-          </select>
+      <h2 id="exportHeading">Eksport</h2>
+
+      <label>Formål
+        <select id="exportPurpose">
+          <option value="screen">Skærm / PowerPoint</option>
+          <option value="book">Bog / artikel</option>
+          <option value="poster">Plakat</option>
+          <option value="exhibition">Udstilling</option>
+          <option value="custom">Brugerdefineret</option>
+        </select>
+      </label>
+
+      <div id="exportPresetRow" class="field-grid two">
+        <label>Størrelse
+          <select id="exportPurposePreset"></select>
         </label>
-        <label>Opløsning
-          <select id="exportPreset">
-            <option value="screen">Skærm</option>
-            <option value="3000">3000 px bredde</option>
-            <option value="6000">6000 px bredde</option>
-            <option value="custom">Brugerdefineret</option>
+        <label id="exportDpiWrap">Opløsning
+          <select id="exportPurposeDpi">
+            <option value="72">72 dpi</option>
+            <option value="96">96 dpi</option>
+            <option value="150">150 dpi</option>
+            <option value="200">200 dpi</option>
+            <option value="300">300 dpi</option>
           </select>
         </label>
       </div>
-      <div class="field-grid two">
-        <label>Bredde<input id="exportWidth" type="number" value="3000" min="200" max="12000"></label>
-        <label>Højde<input id="exportHeight" type="number" value="2000" min="200" max="12000"></label>
-      </div>
-      <p id="effectiveExportSize" class="muted small">Faktisk eksport: 3000 × 2000 px</p>
+
+      <p id="effectiveExportSize" class="muted small">Faktisk eksport: 3840 × 2160 px</p>
+      <p id="exportSuitability" class="muted small">Egnet til skærm og præsentation.</p>
+
+      <details id="advancedExportDetails">
+        <summary id="advancedExportSummary">Avanceret…</summary>
+
+        <div class="field-grid two">
+          <label>Bredde<input id="exportWidth" type="number" value="3840" min="200" max="50000"></label>
+          <label>Højde<input id="exportHeight" type="number" value="2160" min="200" max="50000"></label>
+        </div>
+
+        <div class="field-grid two">
+          <label>Format
+            <select id="exportRatio">
+              <option value="screen">Skærmformat</option>
+              <option value="1.5">3:2</option>
+              <option value="1.3333333333">4:3</option>
+              <option value="1">1:1</option>
+              <option value="1.41421356237">A-format liggende</option>
+              <option value="0.70710678118">A-format stående</option>
+              <option value="custom">Frit format</option>
+            </select>
+          </label>
+          <label>Pixelpreset
+            <select id="exportPreset">
+              <option value="screen">Skærm</option>
+              <option value="3000">3000 px bredde</option>
+              <option value="6000">6000 px bredde</option>
+              <option value="custom">Brugerdefineret</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
       <div class="button-grid two">
         <button id="toggleExportFrameButton">Vis eksport-ramme</button>
         <button id="fitToExportFrameButton">Tilpas model til ramme</button>
       </div>
-      <div class="button-grid two">
-        <button id="exportPngButton">Gem PNG</button>
-        <button id="shareImageButton">Del / Gem til Fotos</button>
-      </div>
 
-      <hr class="section-rule">
-      <h3 id="annotationsHeading">Eksportmarkeringer</h3>
-      <label class="check-row"><input id="showScaleBar" type="checkbox"> Vis målestok</label>
-      <div class="field-grid two">
-        <label>Længde
-          <select id="scaleBarLength">
-            <option value="auto">Automatisk</option><option value="0.1">10 cm</option><option value="0.2">20 cm</option><option value="0.5">50 cm</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option>
-          </select>
-        </label>
-        <label>Placering
-          <select id="scaleBarPosition"><option value="bottom-left">Nederst venstre</option><option value="bottom-right">Nederst højre</option><option value="top-left">Øverst venstre</option><option value="top-right">Øverst højre</option></select>
-        </label>
-      </div>
-      <label class="check-row"><input id="showNorthArrow" type="checkbox"> Vis nordpil</label>
-      <div class="field-grid two">
-        <label>Rotation °<input id="northAngle" type="number" value="0" step="1"></label>
-        <label>Placering
-          <select id="northPosition"><option value="top-right">Øverst højre</option><option value="top-left">Øverst venstre</option><option value="bottom-right">Nederst højre</option><option value="bottom-left">Nederst venstre</option></select>
-        </label>
-      </div>
-      <p id="scaleNorthNote" class="muted small">Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.</p>
-      <p id="exportNote" class="muted small">Det synlige udsnit inden for rammen eksporteres. Opløsningen ændrer kun detaljegraden, ikke udsnittet.</p>
+      <button id="exportPngButton" class="primary">Gem billede</button>
+      <button id="shareImageButton">Del / Gem til Fotos</button>
+
+      <p id="exportNote" class="muted small">Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.</p>
     </section>
+
 
 
     <section class="about">
@@ -260,7 +274,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.34"></script>
+<script type="module" src="app.js?v=0.2.35"></script>
 
 <dialog id="projectSaveDialog" class="project-save-dialog">
   <div class="dialog-card">

@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.34';
+const VERSION='0.2.35';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -93,6 +93,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  exportPurpose:'Formål', exportSize:'Størrelse', exportPurposeScreen:'Skærm / PowerPoint', exportPurposeBook:'Bog / artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Udstilling', exportPurposeCustom:'Brugerdefineret', exportSuitScreen:'Egnet til skærm og præsentation.', exportSuitBook:'Egnet til bog og artikel.', exportSuitPoster:'Egnet til plakattryk.', exportSuitExhibition:'Egnet til stor udstillingsgrafik.', exportSuitCustom:'Brugerdefineret eksport.', advancedExport:'Avanceret…', saveImage:'Gem billede', exportSafeNote:'Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.',
+
   effectiveExport:'Faktisk eksport: {w} × {h} px', exportLimited:'Eksporten er reduceret til {w} × {h} px for at passe i enhedens hukommelse.',
 
   imageReady:'Billedet er klar', imageReadyText:'Vælg hvordan billedet skal gemmes.', imageSavePng:'Gem PNG', imageSharePrepared:'Del / Gem til Fotos', imageClose:'Luk', imagePrepared:'Billedet er klar til at blive gemt.',
@@ -160,6 +162,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  exportPurpose:'Zweck', exportSize:'Größe', exportPurposeScreen:'Bildschirm / PowerPoint', exportPurposeBook:'Buch / Artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Ausstellung', exportPurposeCustom:'Benutzerdefiniert', exportSuitScreen:'Geeignet für Bildschirm und Präsentation.', exportSuitBook:'Geeignet für Buch und Artikel.', exportSuitPoster:'Geeignet für Plakatdruck.', exportSuitExhibition:'Geeignet für große Ausstellungsgrafik.', exportSuitCustom:'Benutzerdefinierter Export.', advancedExport:'Erweitert…', saveImage:'Bild speichern', exportSafeNote:'Große Bilder werden automatisch an die sichere Gerätegrenze angepasst. Originaltexturen bleiben erhalten.',
+
   effectiveExport:'Tatsächlicher Export: {w} × {h} px', exportLimited:'Der Export wurde auf {w} × {h} px reduziert, damit er in den Gerätespeicher passt.',
 
   imageReady:'Das Bild ist fertig', imageReadyText:'Wählen Sie, wie das Bild gespeichert werden soll.', imageSavePng:'PNG speichern', imageSharePrepared:'Teilen / In Fotos sichern', imageClose:'Schließen', imagePrepared:'Das Bild kann jetzt gespeichert werden.',
@@ -224,6 +228,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  exportPurpose:'Purpose', exportSize:'Size', exportPurposeScreen:'Screen / PowerPoint', exportPurposeBook:'Book / article', exportPurposePoster:'Poster', exportPurposeExhibition:'Exhibition', exportPurposeCustom:'Custom', exportSuitScreen:'Suitable for screen and presentation.', exportSuitBook:'Suitable for book and article.', exportSuitPoster:'Suitable for poster printing.', exportSuitExhibition:'Suitable for large exhibition graphics.', exportSuitCustom:'Custom export.', advancedExport:'Advanced…', saveImage:'Save image', exportSafeNote:'Large images are automatically adjusted to the device-safe limit. Original textures are preserved.',
+
   effectiveExport:'Actual export: {w} × {h} px', exportLimited:'Export reduced to {w} × {h} px to fit device memory.',
 
   imageReady:'Image is ready', imageReadyText:'Choose how to save the image.', imageSavePng:'Save PNG', imageSharePrepared:'Share / Save to Photos', imageClose:'Close', imagePrepared:'The image is ready to save.',
@@ -288,6 +294,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  exportPurpose:'Usage', exportSize:'Taille', exportPurposeScreen:'Écran / PowerPoint', exportPurposeBook:'Livre / article', exportPurposePoster:'Affiche', exportPurposeExhibition:'Exposition', exportPurposeCustom:'Personnalisé', exportSuitScreen:'Adapté à l’écran et aux présentations.', exportSuitBook:'Adapté aux livres et articles.', exportSuitPoster:'Adapté à l’impression d’affiches.', exportSuitExhibition:'Adapté aux grands visuels d’exposition.', exportSuitCustom:'Export personnalisé.', advancedExport:'Avancé…', saveImage:'Enregistrer l’image', exportSafeNote:'Les grandes images sont automatiquement adaptées à la limite sûre de l’appareil. Les textures originales sont conservées.',
+
   effectiveExport:'Export réel : {w} × {h} px', exportLimited:'L’export a été réduit à {w} × {h} px pour tenir dans la mémoire de l’appareil.',
 
   imageReady:'L’image est prête', imageReadyText:'Choisissez comment enregistrer l’image.', imageSavePng:'Enregistrer PNG', imageSharePrepared:'Partager / Enregistrer dans Photos', imageClose:'Fermer', imagePrepared:'L’image est prête à être enregistrée.',
@@ -410,7 +418,12 @@ function applyLanguage(lang){
   setText('measureHeading','measure');setText('measureButton','measureDistance');setText('clearMeasureButton','clearMeasure');
   if(!measurePoints.length)setText('measureResult','noMeasurement');
 
-  setText('exportHeading','exportFrame');setLabelPrefix('exportRatio','format');setLabelPrefix('exportPreset','resolution');
+  setText('exportHeading','exportFrame');
+  setLabelPrefix('exportPurpose','exportPurpose');setLabelPrefix('exportPurposePreset','exportSize');
+  setText('advancedExportSummary','advancedExport');setText('exportPngButton','saveImage');
+  setText('exportNote','exportSafeNote');
+  setOption('exportPurpose','screen','exportPurposeScreen');setOption('exportPurpose','book','exportPurposeBook');
+  setOption('exportPurpose','poster','exportPurposePoster');setOption('exportPurpose','exhibition','exportPurposeExhibition');setOption('exportPurpose','custom','exportPurposeCustom');setLabelPrefix('exportRatio','format');setLabelPrefix('exportPreset','resolution');
   setLabelPrefix('exportWidth','width');setLabelPrefix('exportHeight','height');
   setOption('exportRatio','screen','screenFormat');setOption('exportRatio','1.41421356237','aLandscape');setOption('exportRatio','0.70710678118','aPortrait');setOption('exportRatio','custom','customFormat');
   setOption('exportPreset','screen','screen');setOption('exportPreset','3000','px3000');setOption('exportPreset','6000','px6000');setOption('exportPreset','custom','custom');
@@ -436,7 +449,7 @@ function applyLanguage(lang){
   setText('projectReadyHeading','projectReady');setText('projectReadyText','projectReadyText');
   setText('chooseProjectLocationButton','chooseLocation');setText('cancelProjectSaveButton','cancelSave');
 
-  rebuildModelList();renderSavedViews();syncTransformFields();updateEffectiveExportSize();
+  rebuildModelList();renderSavedViews();syncTransformFields();updatePurposePresets();updateEffectiveExportSize();updateExportSuitability();
 }
 
 
@@ -1820,6 +1833,108 @@ function setOrthoTile(camera,fullW,fullH,x,y,w,h,fullBounds){
 }
 
 
+
+const EXPORT_PURPOSES={
+  screen:{
+    dpi:96,
+    presets:[
+      ['1920x1080','Full HD · 1920 × 1080'],
+      ['3840x2160','4K · 3840 × 2160'],
+      ['2560x1440','QHD · 2560 × 1440']
+    ]
+  },
+  book:{
+    dpi:300,
+    presets:[
+      ['A5P','A5 stående'],
+      ['A4P','A4 stående'],
+      ['A4L','A4 liggende']
+    ]
+  },
+  poster:{
+    dpi:300,
+    presets:[
+      ['A3P','A3 stående'],
+      ['A2P','A2 stående'],
+      ['A1P','A1 stående'],
+      ['A0P','A0 stående']
+    ]
+  },
+  exhibition:{
+    dpi:150,
+    presets:[
+      ['A1P','A1 stående'],
+      ['A0P','A0 stående'],
+      ['100x70','100 × 70 cm'],
+      ['200x100','200 × 100 cm']
+    ]
+  },
+  custom:{
+    dpi:150,
+    presets:[['custom','Brugerdefineret']]
+  }
+};
+const A_MM={
+  A5:[148,210],A4:[210,297],A3:[297,420],A2:[420,594],A1:[594,841],A0:[841,1189]
+};
+function mmToPixels(mm,dpi){return Math.max(1,Math.round(mm/25.4*dpi))}
+function cmToPixels(cm,dpi){return Math.max(1,Math.round(cm/2.54*dpi))}
+function purposePresetPixels(value,dpi){
+  if(/^\d+x\d+$/.test(value)){
+    const [w,h]=value.split('x').map(Number);
+    if(w<=5000&&h<=5000)return {w,h};
+    return {w:cmToPixels(w,dpi),h:cmToPixels(h,dpi)};
+  }
+  const m=/^(A[0-5])([PL])$/.exec(value);
+  if(m){
+    const mm=A_MM[m[1]];
+    const portrait={w:mmToPixels(mm[0],dpi),h:mmToPixels(mm[1],dpi)};
+    return m[2]==='L'?{w:portrait.h,h:portrait.w}:portrait;
+  }
+  return null;
+}
+function updatePurposePresets(){
+  const purpose=$('exportPurpose').value;
+  const cfg=EXPORT_PURPOSES[purpose]||EXPORT_PURPOSES.custom;
+  const select=$('exportPurposePreset');
+  select.innerHTML='';
+  for(const [value,label] of cfg.presets){
+    const o=document.createElement('option');o.value=value;o.textContent=label;select.appendChild(o);
+  }
+  $('exportPurposeDpi').value=String(cfg.dpi);
+  $('exportDpiWrap').style.display=purpose==='screen'?'none':'';
+  updatePurposeExport();
+}
+function updatePurposeExport(){
+  const purpose=$('exportPurpose').value;
+  if(purpose==='custom'){
+    $('advancedExportDetails').open=true;
+    updateEffectiveExportSize();
+    updateExportSuitability();
+    return;
+  }
+  const dpi=parseInt($('exportPurposeDpi').value)||96;
+  const value=$('exportPurposePreset').value;
+  const px=purposePresetPixels(value,dpi);
+  if(px){
+    $('exportWidth').value=px.w;
+    $('exportHeight').value=px.h;
+    $('exportRatio').value='custom';
+    $('exportPreset').value='custom';
+  }
+  updateEffectiveExportSize();
+  updateExportSuitability();
+  updateExportFrame();
+}
+function updateExportSuitability(){
+  const purpose=$('exportPurpose')?.value||'custom';
+  const key={
+    screen:'exportSuitScreen',book:'exportSuitBook',poster:'exportSuitPoster',
+    exhibition:'exportSuitExhibition',custom:'exportSuitCustom'
+  }[purpose]||'exportSuitCustom';
+  const el=$('exportSuitability');if(el)el.textContent=tr(key);
+}
+
 function resolvedExportSize(){
   let w=Math.max(200,Math.min(50000,parseInt($('exportWidth').value)||3000));
   let h=Math.max(200,Math.min(50000,parseInt($('exportHeight').value)||2000));
@@ -2384,6 +2499,9 @@ $('cancelPreparedImageButton').onclick=()=>{imageSaveDialog.close();preparedImag
 $('exportPngButton').onclick=savePng;
 $('shareImageButton').onclick=shareImage;
 
+$('exportPurpose').onchange=updatePurposePresets;
+$('exportPurposePreset').onchange=updatePurposeExport;
+$('exportPurposeDpi').onchange=updatePurposeExport;
 $('exportRatio').onchange=()=>{syncExportDimensions('ratio');updateEffectiveExportSize()};
 $('exportPreset').onchange=()=>{syncExportDimensions('preset');updateEffectiveExportSize()};
 $('exportWidth').onchange=()=>{syncExportDimensions('width');updateEffectiveExportSize()};

@@ -174,3 +174,10 @@ select {
 .unwrap-band-handle::after{content:"";position:absolute;left:50%;top:10px;width:90px;height:6px;border-radius:5px;transform:translateX(-50%);background:#1a8ad1;box-shadow:0 1px 3px rgba(0,0,0,.45)}
 .unwrap-band-handle.top{top:0}.unwrap-band-handle.bottom{top:100%}
 .unwrap-preview-footer{align-items:center;flex-wrap:wrap}
+
+
+/* v0.2.35 simplified export */
+#exportPurpose,#exportPurposePreset,#exportPurposeDpi{width:100%}
+#advancedExportDetails{margin:10px 0}
+#advancedExportDetails summary{cursor:pointer;font-weight:600;margin-bottom:8px}
+#exportSuitability{margin-top:-4px}
