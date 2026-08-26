@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.28';
+const VERSION='0.2.30';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -984,7 +984,14 @@ function cropLerpVertex(a,b,t){
     }
     attrs[name]=out;
   }
-  return {attrs};
+  const v={attrs};
+  if(a._screen&&b._screen){
+    v._screen={
+      x:a._screen.x+(b._screen.x-a._screen.x)*t,
+      y:a._screen.y+(b._screen.y-a._screen.y)*t
+    };
+  }
+  return v;
 }
 function cropTriangleMaterialIndex(g,indexOffset){
   for(const group of g.groups||[])if(indexOffset>=group.start&&indexOffset<group.start+group.count)return group.materialIndex||0;
@@ -998,6 +1005,9 @@ function cropEmitPoly(poly,bucket,attrNames){
   for(let i=1;i+1<poly.length;i++)cropEmitTriangle(poly[0],poly[i],poly[i+1],bucket,attrNames);
 }
 function cropSegIntersect(a,b,c,d){
+  if(!a||!b||!c||!d)return null;
+  if(!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(b.x)||!Number.isFinite(b.y)||
+     !Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(d.x)||!Number.isFinite(d.y))return null;
   const r={x:b.x-a.x,y:b.y-a.y},s={x:d.x-c.x,y:d.y-c.y};
   const den=r.x*s.y-r.y*s.x;
   if(Math.abs(den)<1e-10)return null;
@@ -1007,6 +1017,8 @@ function cropSegIntersect(a,b,c,d){
   return {t:Math.max(0,Math.min(1,t)),u:Math.max(0,Math.min(1,u))};
 }
 function cropPointInTri(p,a,b,c){
+  if(!p||!a||!b||!c)return false;
+  if(![p,a,b,c].every(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)))return false;
   const s=(p1,p2,p3)=>(p1.x-p3.x)*(p2.y-p3.y)-(p2.x-p3.x)*(p1.y-p3.y);
   const d1=s(p,a,b),d2=s(p,b,c),d3=s(p,c,a);
   const neg=(d1<0)||(d2<0)||(d3<0),pos=(d1>0)||(d2>0)||(d3>0);
@@ -1060,17 +1072,23 @@ function cropCandidateEdges(spec,bbox){
   return [...ids].map(i=>spec.edges[i]);
 }
 function cropScreenOfLocalPosition(p,mvp,w,h){
+  if(!p||p.length<3)return {x:NaN,y:NaN};
   const c=new THREE.Vector4(p[0],p[1],p[2],1).applyMatrix4(mvp);
-  const iw=Math.abs(c.w)>1e-12?1/c.w:0;
+  if(!Number.isFinite(c.w)||Math.abs(c.w)<1e-12)return {x:NaN,y:NaN};
+  const iw=1/c.w;
   return {x:(c.x*iw*.5+.5)*w,y:(-c.y*iw*.5+.5)*h};
 }
 function cropClipByPolygonEdge(polyVerts,edge,keepLeft,screenFn){
-  if(polyVerts.length<3)return [];
+  if(polyVerts.length<3||!edge?.a||!edge?.b)return [];
   const out=[];
-  const side=p=>(edge.b.x-edge.a.x)*(p.y-edge.a.y)-(edge.b.y-edge.a.y)*(p.x-edge.a.x);
+  const side=p=>{
+    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return NaN;
+    return (edge.b.x-edge.a.x)*(p.y-edge.a.y)-(edge.b.y-edge.a.y)*(p.x-edge.a.x);
+  };
   let s=polyVerts[polyVerts.length-1],ss=screenFn(s),ds=side(ss);
   for(const e of polyVerts){
     const se=screenFn(e),de=side(se);
+    if(!Number.isFinite(ds)||!Number.isFinite(de)){s=e;ss=se;ds=de;continue}
     const sin=keepLeft?ds>=-1e-7:ds<=1e-7;
     const ein=keepLeft?de>=-1e-7:de<=1e-7;
     if(ein){
@@ -1087,25 +1105,40 @@ function cropClipByPolygonEdge(polyVerts,edge,keepLeft,screenFn){
   }
   return out;
 }
+
+function cropSafeScreen(v){
+  const p=v?._screen;
+  if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y))return p;
+  return {x:NaN,y:NaN};
+}
+function cropSafeBBox(points){
+  const valid=points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
+  if(!valid.length)return null;
+  return {
+    minX:Math.min(...valid.map(p=>p.x)),
+    minY:Math.min(...valid.map(p=>p.y)),
+    maxX:Math.max(...valid.map(p=>p.x)),
+    maxY:Math.max(...valid.map(p=>p.y))
+  };
+}
+
 function cropTrianglePrecise(tri,sp,spec,keepInside,edges){
-  // This function is called only for triangles touching/straddling the boundary.
-  // Split against nearby polygon edges, then classify the resulting fragments.
   let fragments=[tri];
-  const screenFn=v=>v._screen;
+  const screenFn=v=>cropSafeScreen(v);
 
   for(const e of edges){
+    if(!e?.a||!e?.b)continue;
     const next=[];
     for(const frag of fragments){
-      const fs=frag.map(v=>v._screen);
-      const bb={
-        minX:Math.min(...fs.map(p=>p.x)),
-        minY:Math.min(...fs.map(p=>p.y)),
-        maxX:Math.max(...fs.map(p=>p.x)),
-        maxY:Math.max(...fs.map(p=>p.y))
-      };
+      if(!Array.isArray(frag)||frag.length<3)continue;
+      const fs=frag.map(screenFn);
+      const bb=cropSafeBBox(fs);
+      if(!bb){continue}
+
       if(e.maxX<bb.minX||e.minX>bb.maxX||e.maxY<bb.minY||e.minY>bb.maxY){
         next.push(frag);continue;
       }
+
       const left=cropClipByPolygonEdge(frag,e,true,screenFn);
       const right=cropClipByPolygonEdge(frag,e,false,screenFn);
       if(left.length>=3)next.push(left);
@@ -1118,7 +1151,9 @@ function cropTrianglePrecise(tri,sp,spec,keepInside,edges){
 
   const out=[];
   for(const frag of fragments){
-    const pts=frag.map(v=>v._screen);
+    if(!Array.isArray(frag)||frag.length<3)continue;
+    const pts=frag.map(screenFn).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+    if(pts.length<3)continue;
     const c={
       x:pts.reduce((s,p)=>s+p.x,0)/pts.length,
       y:pts.reduce((s,p)=>s+p.y,0)/pts.length
@@ -1130,25 +1165,29 @@ function cropTrianglePrecise(tri,sp,spec,keepInside,edges){
 }
 
 function cropTriangleEdgeHits(sp,edges){
+  if(!Array.isArray(sp)||sp.length<3||!Array.isArray(edges))return false;
+  const a0=sp[0],a1=sp[1],a2=sp[2];
+  if(!a0||!a1||!a2)return false;
   for(const e of edges){
-    for(let k=0;k<3;k++){
-      if(cropSegIntersect(sp[k],sp[(k+1)%3],e.a,e.b))return true;
-    }
-    if(cropPointInTri(e.a,sp[0],sp[1],sp[2])||cropPointInTri(e.b,sp[0],sp[1],sp[2]))return true;
+    if(!e?.a||!e?.b)continue;
+    if(cropSegIntersect(a0,a1,e.a,e.b))return true;
+    if(cropSegIntersect(a1,a2,e.a,e.b))return true;
+    if(cropSegIntersect(a2,a0,e.a,e.b))return true;
+    if(cropPointInTri(e.a,a0,a1,a2)||cropPointInTri(e.b,a0,a1,a2))return true;
   }
   return false;
 }
 function cropClassifyTriangle(sp,spec,edges){
+  if(!Array.isArray(sp)||sp.length<3||sp.some(p=>!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)))return 0;
   const inside0=inPolygon(sp[0],spec.poly);
   const inside1=inPolygon(sp[1],spec.poly);
   const inside2=inPolygon(sp[2],spec.poly);
 
   if(!edges.length){
-    if(inside0&&inside1&&inside2)return 1;       // safely inside
-    if(!inside0&&!inside1&&!inside2)return -1;  // safely outside
+    if(inside0&&inside1&&inside2)return 1;
+    if(!inside0&&!inside1&&!inside2)return -1;
     return 0;
   }
-
   if(cropTriangleEdgeHits(sp,edges))return 0;
   if(inside0&&inside1&&inside2)return 1;
   if(!inside0&&!inside1&&!inside2)return -1;
@@ -1192,12 +1231,12 @@ async function cropGeometry(mesh,spec,keepInside){
     }
     const tri=[vertexAt(idx[io]),vertexAt(idx[io+1]),vertexAt(idx[io+2])];
     const sp=tri.map(v=>v._screen);
-    const bbox={
-      minX:Math.min(sp[0].x,sp[1].x,sp[2].x),
-      minY:Math.min(sp[0].y,sp[1].y,sp[2].y),
-      maxX:Math.max(sp[0].x,sp[1].x,sp[2].x),
-      maxY:Math.max(sp[0].y,sp[1].y,sp[2].y)
-    };
+    const bbox=cropSafeBBox(sp);
+    if(!bbox){
+      // A triangle behind/through the camera cannot be classified reliably.
+      // Skip it rather than crashing the whole crop.
+      continue;
+    }
     const edges=cropCandidateEdges(spec,bbox);
     const cls=cropClassifyTriangle(sp,spec,edges);
     const mi=cropTriangleMaterialIndex(g,io),bucket=bucketFor(mi);
@@ -1279,6 +1318,27 @@ function finishCropAfterCalculation(){
   orbit.enableRotate=true;
   orbit.enablePan=true;
   orbit.enableZoom=true;
+}
+
+
+function restoreCropSelectionAfterFailure(){
+  cropCalculating=false;
+  cropCancelRequested=false;
+  cropMode=true;
+  cropDrawing=false;
+  cropPointerId=null;
+  renderer.domElement.style.pointerEvents='none';
+  cropInputLayer.classList.add('active');
+  cropOverlay.classList.add('active');
+  cropHint.classList.add('active');
+  $('startCropButton').classList.add('active');
+  orbit.enabled=false;
+  orbit.enableRotate=false;
+  orbit.enablePan=false;
+  orbit.enableZoom=false;
+  transform.detach();
+  redrawCrop();
+  updateCropButtons();
 }
 
 async function applyCrop(keepInside){
@@ -1365,15 +1425,19 @@ async function applyCrop(keepInside){
     selectModel(m);
     setStatus(tr('cropCreated'));
   }catch(err){
-    console.error(err);
+    console.error('ArchaeoPlan precision crop error:',err);
     if(clone)clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry.dispose()});
-    setStatus(err?.message||tr('preciseCropFallback'));
-  }finally{
-    cropCalculating=false;
-    cropCancelRequested=false;
-    finishCropAfterCalculation();
-    updateCropButtons();
+    clone=null;
+    restoreCropSelectionAfterFailure();
+    const msg=err?.message||tr('preciseCropFallback');
+    setStatus(`Snitfejl: ${msg}`);
+    return;
   }
+
+  cropCalculating=false;
+  cropCancelRequested=false;
+  finishCropAfterCalculation();
+  updateCropButtons();
 }
 
 async function exportPng(){
