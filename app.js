@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.25';
+const VERSION='0.2.26';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -987,21 +987,24 @@ function cropPointInTri(p,a,b,c){
 }
 function cropPrepareContour(poly){
   if(!Array.isArray(poly)||poly.length<3)return null;
-  const dedup=[];
+  const clean=[];let last=null;
   for(const p of poly){
     const q={x:+p.x,y:+p.y};
-    const last=dedup[dedup.length-1];
-    if(!last||Math.hypot(q.x-last.x,q.y-last.y)>=1.0)dedup.push(q);
+    if(!last||Math.hypot(q.x-last.x,q.y-last.y)>=1.5){clean.push(q);last=q}
   }
-  if(dedup.length<3)return null;
-  let clean=dedup.length>80?cropSimplifyRdp(dedup,1.25):dedup.slice();
   if(clean.length<3)return null;
-  const first=clean[0],last=clean[clean.length-1];
-  if(Math.hypot(first.x-last.x,first.y-last.y)<0.75)clean.pop();
-  return clean.length>=3?clean:null;
+  const first=clean[0],end=clean[clean.length-1];
+  if(clean.length>3&&Math.hypot(first.x-end.x,first.y-end.y)<0.75)clean.pop();
+  const MAX_POINTS=1200;
+  if(clean.length>MAX_POINTS){
+    const sampled=[],step=(clean.length-1)/(MAX_POINTS-1);
+    for(let i=0;i<MAX_POINTS;i++)sampled.push(clean[Math.round(i*step)]);
+    return sampled;
+  }
+  return clean;
 }
 function makeCropClipSpec(poly){
-  const clean=cropPrepareContour(poly);
+  const clean=Array.isArray(poly)?poly:null;
   if(!clean||clean.length<3)return null;
   const edges=[];
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -1161,6 +1164,43 @@ function cropGeometry(mesh,spec,keepInside){
   return true;
 }
 
+
+function finalizeCropContour(){
+  if(cropPoints.length<3)return false;
+
+  // End active pen/finger input immediately.
+  cropDrawing=false;
+  if(cropPointerId!=null){
+    try{cropInputLayer.releasePointerCapture?.(cropPointerId)}catch(_){}
+  }
+  cropPointerId=null;
+
+  // Lock the contour. No geometry calculation happens here.
+  cropMode=false;
+  renderer.domElement.style.pointerEvents='';
+  cropInputLayer.classList.remove('active');
+  cropHint.classList.remove('active');
+  $('startCropButton').classList.remove('active');
+  cropOverlay.classList.add('active');
+  redrawCrop();
+  updateCropButtons();
+
+  orbit.enabled=false;
+  orbit.enableRotate=false;
+  orbit.enablePan=false;
+  orbit.enableZoom=false;
+  transform.detach();
+  return true;
+}
+function finishCropAfterCalculation(){
+  cropOverlay.classList.remove('active');
+  renderer.domElement.style.pointerEvents='';
+  orbit.enabled=true;
+  orbit.enableRotate=true;
+  orbit.enablePan=true;
+  orbit.enableZoom=true;
+}
+
 async function applyCrop(keepInside){
   if(!selectedEditable()||cropPoints.length<3)return;
 
@@ -1177,7 +1217,16 @@ async function applyCrop(keepInside){
   setStatus(tr('cropPreparing'));
   await new Promise(r=>setTimeout(r,0));
 
-  const spec=makeCropClipSpec(cropPoints);
+  const preparedContour=cropPrepareContour(cropPoints);
+  if(!preparedContour){
+    finishCropAfterCalculation();
+    setStatus(tr('preciseCropFallback'));
+    return;
+  }
+  setStatus(`${tr('cropPreparing')} ${preparedContour.length} punkter`);
+  await new Promise(r=>setTimeout(r,0));
+
+  const spec=makeCropClipSpec(preparedContour);
   if(!spec){
     finishCropAfterCalculation();
     setStatus(tr('preciseCropFallback'));
