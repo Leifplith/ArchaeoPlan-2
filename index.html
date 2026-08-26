@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.35</title>
-  <link rel="stylesheet" href="style.css?v=0.2.35">
+  <title>ArchaeoPlan v0.2.37</title>
+  <link rel="stylesheet" href="style.css?v=0.2.37">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.35</span>
+      <span class="version">v0.2.37</span>
     </div>
     <div class="header-actions">
 
@@ -213,6 +213,27 @@
       <button id="exportPngButton" class="primary">Gem billede</button>
       <button id="shareImageButton">Del / Gem til Fotos</button>
 
+      <hr class="section-rule">
+      <h3 id="annotationsHeading">Eksportmarkeringer</h3>
+      <label class="check-row"><input id="showScaleBar" type="checkbox"> Vis målestok</label>
+      <div class="field-grid two">
+        <label>Længde
+          <select id="scaleBarLength">
+            <option value="auto">Automatisk</option><option value="0.1">10 cm</option><option value="0.2">20 cm</option><option value="0.5">50 cm</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option>
+          </select>
+        </label>
+        <label>Placering
+          <select id="scaleBarPosition"><option value="bottom-left">Nederst venstre</option><option value="bottom-right">Nederst højre</option><option value="top-left">Øverst venstre</option><option value="top-right">Øverst højre</option></select>
+        </label>
+      </div>
+      <label class="check-row"><input id="showNorthArrow" type="checkbox"> Vis nordpil</label>
+      <div class="field-grid two">
+        <label>Rotation °<input id="northAngle" type="number" value="0" step="1"></label>
+        <label>Placering
+          <select id="northPosition"><option value="top-right">Øverst højre</option><option value="top-left">Øverst venstre</option><option value="bottom-right">Nederst højre</option><option value="bottom-left">Nederst venstre</option></select>
+        </label>
+      </div>
+      <p id="scaleNorthNote" class="muted small">Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.</p>
       <p id="exportNote" class="muted small">Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.</p>
     </section>
 
@@ -243,6 +264,7 @@
       <p id="unwrapStatus" class="muted small">Hele omkredsen og hele højden bruges.</p>
     </section>
 
+      <section>
       <h2 id="docsHeading">Dokumentationsvisning</h2>
       <p id="docsText">GLB- og OBJ-teksturer bevares. ArchaeoPlan ændrer ikke de originale teksturfiler.</p>
     </section>
@@ -262,7 +284,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.32-clean klar.</div>
+    <div id="status">ArchaeoPlan v0.2.37 klar.</div>
   </main>
 </div>
 
@@ -274,7 +296,25 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.35"></script>
+<script type="module" src="app.js?v=0.2.37"></script>
+
+
+<dialog id="projectPreparingDialog" class="project-save-dialog">
+  <div class="dialog-card">
+    <h2 id="projectPreparingHeading">Forbereder projekt</h2>
+    <p id="projectPreparingText">Pakker projektfilen. Vent et øjeblik…</p>
+    <progress id="projectPreparingProgress" value="0" max="1" style="width:100%"></progress>
+    <p id="projectPreparingDetail" class="muted small"></p>
+  </div>
+</dialog>
+
+<dialog id="projectErrorDialog" class="project-save-dialog">
+  <div class="dialog-card">
+    <h2 id="projectErrorHeading">Projektet kunne ikke gemmes</h2>
+    <p id="projectErrorText"></p>
+    <button id="projectErrorCloseButton" class="primary">Luk</button>
+  </div>
+</dialog>
 
 <dialog id="projectSaveDialog" class="project-save-dialog">
   <div class="dialog-card">

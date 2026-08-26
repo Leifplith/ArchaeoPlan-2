@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.35';
+const VERSION='0.2.37';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -80,6 +80,7 @@ let measureMode=false,measurePoints=[],measureLine=null,measureDots=[],measureLa
 let exportFrameVisible=false;
 let savedViews=[];
 let preparedProject=null;
+const projectPreparingDialog=$('projectPreparingDialog'),projectPreparingProgress=$('projectPreparingProgress'),projectPreparingDetail=$('projectPreparingDetail'),projectErrorDialog=$('projectErrorDialog'),projectErrorText=$('projectErrorText');
 let underlay=null,underlayImageData=null,underlaySelected=false;
 let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false,preparedFrieze=null;
 let unwrapAreaMode=false,unwrapAreaPoints=[],unwrapBandTop=0,unwrapBandBottom=1,unwrapPreviewUrl=null;
@@ -2162,7 +2163,10 @@ function currentProjectSettings(){
       scaleBarPosition:$('scaleBarPosition').value,
       showNorthArrow:$('showNorthArrow').checked,
       northAngle:$('northAngle').value,
-      northPosition:$('northPosition').value
+      northPosition:$('northPosition').value,
+      purpose:$('exportPurpose')?.value||'custom',
+      purposePreset:$('exportPurposePreset')?.value||'custom',
+      purposeDpi:$('exportPurposeDpi')?.value||'150'
     },
     measurement:measurePoints.map(p=>p.toArray()),
     underlay:underlayMetadata(),
@@ -2203,14 +2207,29 @@ async function saveProject(){
     setStatus(tr('noModelsToSave'));
     return;
   }
+
   const defaultName=`ArchaeoPlan-${new Date().toISOString().slice(0,10)}`;
   const requested=window.prompt(tr('projectNamePrompt'),defaultName);
   if(requested===null)return;
   const filename=safeProjectName(requested)+'.archaeoplan';
 
+  const saveButton=$('saveProjectButton');
+  const oldButtonText=saveButton.textContent;
+  saveButton.disabled=true;
+  saveButton.textContent='Forbereder…';
+
   try{
     transform.detach();
-    setStatus(tr('preparingProject'));
+    setStatus('Forbereder projekt…');
+
+    projectPreparingProgress.max=Math.max(models.length+2,2);
+    projectPreparingProgress.value=0;
+    projectPreparingDetail.textContent='Forbereder projektindstillinger…';
+    if(projectPreparingDialog?.showModal && !projectPreparingDialog.open)projectPreparingDialog.showModal();
+
+    // Give Safari one paint before GLB export starts.
+    await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+
     const manifest={
       format:PROJECT_FORMAT,
       formatVersion:PROJECT_FORMAT_VERSION,
@@ -2223,27 +2242,55 @@ async function saveProject(){
 
     for(let i=0;i<models.length;i++){
       const m=models[i];
-      setStatus(tr('savingModel',{i:i+1,n:models.length}));
+      const msg=`Gemmer model ${i+1} af ${models.length}: ${m.name}`;
+      setStatus(msg);
+      projectPreparingDetail.textContent=msg;
+      projectPreparingProgress.value=i+1;
+
+      // Export one model at a time. This preserves the current .archaeoplan format.
       const glb=await exportRootAsGlb(m.root);
+      if(!(glb instanceof ArrayBuffer)){
+        throw new Error(`Modellen "${m.name}" kunne ikke eksporteres som GLB.`);
+      }
       const meta=modelMetadata(m,i);
       manifest.models.push(meta);
       archive[meta.file]=new Uint8Array(glb);
-      await new Promise(r=>setTimeout(r,0));
+
+      // Yield between models, especially important on iPad.
+      await new Promise(resolve=>setTimeout(resolve,0));
     }
 
+    projectPreparingDetail.textContent='Pakker projektfil…';
+    projectPreparingProgress.value=models.length+1;
     archive['project.json']=strToU8(JSON.stringify(manifest));
-    setStatus(tr('packingProject'));
     const packed=zipSync(archive,{level:0});
     const blob=new Blob([packed],{type:'application/zip'});
+    if(!blob.size)throw new Error('Den færdige projektfil blev tom.');
+
     preparedProject={blob,filename};
-    if(projectSaveDialog?.showModal)projectSaveDialog.showModal();
-    else await savePreparedProject();
+    projectPreparingProgress.value=models.length+2;
+    projectPreparingDialog?.close();
+
+    if(projectSaveDialog?.showModal){
+      projectSaveDialog.showModal();
+    }else{
+      await savePreparedProject();
+    }
+
     if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root);
-    setStatus(tr('projectPrepared'));
+    setStatus(`Projektet er klar: ${filename}`);
   }catch(err){
     console.error(err);
+    projectPreparingDialog?.close();
     if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode)transform.attach(selectedModel.root);
-    setStatus(tr('saveError',{error:err.message||err}));
+
+    const msg=err?.message||String(err);
+    setStatus(`Projektfejl: ${msg}`);
+    projectErrorText.textContent=msg;
+    if(projectErrorDialog?.showModal && !projectErrorDialog.open)projectErrorDialog.showModal();
+  }finally{
+    saveButton.disabled=false;
+    saveButton.textContent=oldButtonText;
   }
 }
 
@@ -2251,7 +2298,6 @@ async function savePreparedProject(){
   if(!preparedProject)return;
   const {blob,filename}=preparedProject;
   try{
-    // Chromium/desktop: real Save As dialog when supported.
     if(window.showSaveFilePicker){
       const handle=await window.showSaveFilePicker({
         suggestedName:filename,
@@ -2266,7 +2312,6 @@ async function savePreparedProject(){
       return;
     }
 
-    // iPad/iPhone Safari: native share sheet; choose "Save to Files" and destination there.
     const file=new File([blob],filename,{type:'application/zip'});
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
       await navigator.share({files:[file],title:'ArchaeoPlan'});
@@ -2276,11 +2321,13 @@ async function savePreparedProject(){
       return;
     }
 
-    // Last-resort browser download.
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download=filename;
-    document.body.appendChild(a);a.click();a.remove();
+    a.href=url;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),5000);
     projectSaveDialog?.close();
     preparedProject=null;
@@ -2288,7 +2335,11 @@ async function savePreparedProject(){
   }catch(err){
     if(err?.name==='AbortError')return;
     console.error(err);
-    setStatus(tr('saveError',{error:err.message||err}));
+    const msg=err?.message||String(err);
+    setStatus(`Projektfejl: ${msg}`);
+    projectErrorText.textContent=msg;
+    if(projectErrorDialog?.showModal && !projectErrorDialog.open)projectErrorDialog.showModal();
+    // Keep preparedProject so the user can retry without rebuilding it.
   }
 }
 
@@ -2334,6 +2385,11 @@ async function restoreProjectSettings(settings){
   $('showNorthArrow').checked=!!ex.showNorthArrow;
   if(ex.northAngle!=null)$('northAngle').value=ex.northAngle;
   if(ex.northPosition!=null)$('northPosition').value=ex.northPosition;
+  if(ex.purpose!=null&&$('exportPurpose'))$('exportPurpose').value=ex.purpose;
+  if(ex.purposeDpi!=null&&$('exportPurposeDpi'))$('exportPurposeDpi').value=ex.purposeDpi;
+  if($('exportPurpose'))updatePurposePresets();
+  if(ex.purposePreset!=null&&$('exportPurposePreset'))$('exportPurposePreset').value=ex.purposePreset;
+  if($('exportPurpose'))updatePurposeExport();
 
   exportFrameVisible=!!ex.frameVisible;
   exportFrame.classList.toggle('active',exportFrameVisible);
@@ -2509,6 +2565,7 @@ $('exportHeight').onchange=()=>{syncExportDimensions('height');updateEffectiveEx
 $('exportWidth').oninput=updateEffectiveExportSize;$('exportHeight').oninput=updateEffectiveExportSize;
 
 $('newProjectButton').onclick=newProject;
+$('projectErrorCloseButton').onclick=()=>projectErrorDialog.close();
 $('saveProjectButton').onclick=saveProject;
 languageSelect.onchange=e=>applyLanguage(e.target.value);
 $('chooseProjectLocationButton').onclick=savePreparedProject;
