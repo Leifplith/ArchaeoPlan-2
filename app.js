@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.23';
+const VERSION='0.2.24';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -91,6 +91,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  cropLocking:'Lukker og låser polygon…', cropPreparing:'Forbereder polygon…', cropSplitting:'Beregner præcisionssnit…', cropBuilding:'Opbygger beskåret model…', cropLocked:'Polygon låst. Beregner snit…',
+
   precisionCropNote:'Præcisionssnit: frihåndskonturen lukkes automatisk, og trekanter deles ved klippelinjen.', preciseCropWorking:'Laver præcisionssnit…', preciseCropFallback:'Præcisionssnittet kunne ikke beregnes for dette område.',
 
   unwrapSurface:'Udfold overflade', unwrapSelectArea:'Vælg område', unwrapClearArea:'Ryd område', unwrapPreview:'Lav udfoldning', unwrapWholeHeight:'Hele omkredsen og hele højden bruges.', unwrapPreviewHeading:'Forhåndsvisning af udfoldning', unwrapPreviewHelp:'Træk den øverste og nederste kant for at vælge eksportbåndet.', unwrapBandAll:'Bånd: hele højden', unwrapExportBand:'Eksportér valgt bånd', unwrapExportFull:'Eksportér hele udfoldningen', unwrapAreaActive:'Tegn området direkte på modellen.', unwrapAreaChosen:'Område valgt til udfoldning.', unwrapAreaCleared:'Afgrænsning ryddet.',
@@ -150,6 +152,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  cropLocking:'Polygon wird geschlossen und gesperrt…', cropPreparing:'Polygon wird vorbereitet…', cropSplitting:'Präzisionsschnitt wird berechnet…', cropBuilding:'Beschnittenes Modell wird aufgebaut…', cropLocked:'Polygon gesperrt. Schnitt wird berechnet…',
+
   precisionCropNote:'Präzisionsschnitt: Die Freihandkontur wird automatisch geschlossen und die Dreiecke werden an der Schnittlinie geteilt.', preciseCropWorking:'Präzisionsschnitt wird berechnet…', preciseCropFallback:'Der Präzisionsschnitt konnte für diesen Bereich nicht berechnet werden.',
 
   unwrapSurface:'Oberfläche abwickeln', unwrapSelectArea:'Bereich wählen', unwrapClearArea:'Bereich löschen', unwrapPreview:'Abwicklung erstellen', unwrapWholeHeight:'Gesamter Umfang und gesamte Höhe werden verwendet.', unwrapPreviewHeading:'Vorschau der Abwicklung', unwrapPreviewHelp:'Obere und untere Kante ziehen, um den Exportstreifen zu wählen.', unwrapBandAll:'Streifen: gesamte Höhe', unwrapExportBand:'Gewählten Streifen exportieren', unwrapExportFull:'Gesamte Abwicklung exportieren', unwrapAreaActive:'Bereich direkt auf dem Modell zeichnen.', unwrapAreaChosen:'Bereich für die Abwicklung gewählt.', unwrapAreaCleared:'Abgrenzung gelöscht.',
@@ -206,6 +210,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  cropLocking:'Closing and locking polygon…', cropPreparing:'Preparing polygon…', cropSplitting:'Calculating precision cut…', cropBuilding:'Building cropped model…', cropLocked:'Polygon locked. Calculating cut…',
+
   precisionCropNote:'Precision cut: the freehand contour is closed automatically and triangles are split at the cut line.', preciseCropWorking:'Creating precision cut…', preciseCropFallback:'The precision cut could not be calculated for this area.',
 
   unwrapSurface:'Unwrap surface', unwrapSelectArea:'Select area', unwrapClearArea:'Clear area', unwrapPreview:'Create unwrap', unwrapWholeHeight:'Full circumference and full height will be used.', unwrapPreviewHeading:'Unwrap preview', unwrapPreviewHelp:'Drag the upper and lower edges to choose the export band.', unwrapBandAll:'Band: full height', unwrapExportBand:'Export selected band', unwrapExportFull:'Export full unwrap', unwrapAreaActive:'Draw the area directly on the model.', unwrapAreaChosen:'Area selected for unwrap.', unwrapAreaCleared:'Area selection cleared.',
@@ -262,6 +268,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  cropLocking:'Fermeture et verrouillage du polygone…', cropPreparing:'Préparation du polygone…', cropSplitting:'Calcul de la coupe de précision…', cropBuilding:'Construction du modèle découpé…', cropLocked:'Polygone verrouillé. Calcul de la coupe…',
+
   precisionCropNote:'Coupe de précision : le contour à main levée est fermé automatiquement et les triangles sont divisés sur la ligne de coupe.', preciseCropWorking:'Calcul de la coupe de précision…', preciseCropFallback:'La coupe de précision n’a pas pu être calculée pour cette zone.',
 
   unwrapSurface:'Dérouler la surface', unwrapSelectArea:'Choisir une zone', unwrapClearArea:'Effacer la zone', unwrapPreview:'Créer le déroulé', unwrapWholeHeight:'Toute la circonférence et toute la hauteur seront utilisées.', unwrapPreviewHeading:'Aperçu du déroulé', unwrapPreviewHelp:'Faites glisser les bords supérieur et inférieur pour choisir la bande à exporter.', unwrapBandAll:'Bande : toute la hauteur', unwrapExportBand:'Exporter la bande sélectionnée', unwrapExportFull:'Exporter tout le déroulé', unwrapAreaActive:'Dessinez la zone directement sur le modèle.', unwrapAreaChosen:'Zone choisie pour le déroulé.', unwrapAreaCleared:'Sélection de zone effacée.',
@@ -1208,18 +1216,96 @@ function cropGeometry(mesh,spec,keepInside){
   const oldGeo=mesh.geometry;mesh.geometry=newG;oldGeo.dispose();
   return true;
 }
-function applyCrop(keepInside){
+
+function finalizeCropContour(){
+  if(cropPoints.length<3)return false;
+
+  // Stop any active drawing gesture immediately.
+  cropDrawing=false;
+  if(cropPointerId!=null){
+    try{cropInputLayer.releasePointerCapture?.(cropPointerId)}catch(_){}
+  }
+  cropPointerId=null;
+
+  // Freeze input while the cut is calculated.
+  cropMode=false;
+  renderer.domElement.style.pointerEvents='';
+  cropInputLayer.classList.remove('active');
+  cropHint.classList.remove('active');
+  $('startCropButton').classList.remove('active');
+
+  // Keep the overlay visible so the user can clearly see the closed contour.
+  cropOverlay.classList.add('active');
+
+  // Normalise and explicitly lock the contour used for calculation.
+  const clean=cropPrepareContour(cropPoints);
+  if(!clean||clean.length<3)return false;
+  cropPoints=clean.map(p=>({x:p.x,y:p.y}));
+  redrawCrop();
+  updateCropButtons();
+
+  orbit.enabled=false;
+  orbit.enableRotate=false;
+  orbit.enablePan=false;
+  orbit.enableZoom=false;
+  transform.detach();
+  return true;
+}
+function finishCropAfterCalculation(){
+  cropOverlay.classList.remove('active');
+  renderer.domElement.style.pointerEvents='';
+  orbit.enabled=true;
+  orbit.enableRotate=true;
+  orbit.enablePan=true;
+  orbit.enableZoom=true;
+}
+
+async function applyCrop(keepInside){
   if(!selectedEditable()||cropPoints.length<3)return;
+
+  setStatus(tr('cropLocking'));
+  if(!finalizeCropContour()){
+    finishCropAfterCalculation();
+    setStatus(tr('preciseCropFallback'));
+    return;
+  }
+
+  // Give Safari/iPad one frame to paint the visibly closed/locked polygon.
+  await new Promise(requestAnimationFrame);
+
+  setStatus(tr('cropPreparing'));
+  await new Promise(r=>setTimeout(r,0));
+
   const spec=makeCropClipSpec(cropPoints);
-  if(!spec){setStatus(tr('preciseCropFallback'));return}
-  setStatus(tr('preciseCropWorking'));
-  const original=selectedModel,clone=original.root.clone(true);
+  if(!spec){
+    finishCropAfterCalculation();
+    setStatus(tr('preciseCropFallback'));
+    return;
+  }
+
+  setStatus(tr('cropSplitting'));
+  await new Promise(r=>setTimeout(r,0));
+
+  const original=selectedModel;
+  const clone=original.root.clone(true);
   clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry=o.geometry.clone()});
   clone.updateMatrixWorld(true);
-  clone.traverse(o=>{if(o.isMesh)cropGeometry(o,spec,keepInside)});
+
+  // Process one mesh at a time and yield between meshes so the UI stays alive.
+  const meshes=[];
+  clone.traverse(o=>{if(o.isMesh)meshes.push(o)});
+  for(let i=0;i<meshes.length;i++){
+    cropGeometry(meshes[i],spec,keepInside);
+    if((i&1)===1)await new Promise(r=>setTimeout(r,0));
+  }
+
+  setStatus(tr('cropBuilding'));
+  await new Promise(r=>setTimeout(r,0));
+
   const originalWasVisible=original.root.visible;
   original.root.visible=false;
   const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true,frame:false});
+
   pushHistory({
     label:'beskæring',
     undo:()=>{
@@ -1234,7 +1320,13 @@ function applyCrop(keepInside){
       selectModel(m);rebuildModelList();
     }
   });
-  cancelCrop();selectModel(m);setStatus(tr('cropCreated'));
+
+  finishCropAfterCalculation();
+  cropPoints=[];
+  redrawCrop();
+  updateCropButtons();
+  selectModel(m);
+  setStatus(tr('cropCreated'));
 }
 
 async function exportPng(){
