@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.27';
+const VERSION='0.2.28';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -83,6 +83,7 @@ let preparedProject=null;
 let underlay=null,underlayImageData=null,underlaySelected=false;
 let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false,preparedFrieze=null;
 let unwrapAreaMode=false,unwrapAreaPoints=[],unwrapBandTop=0,unwrapBandBottom=1,unwrapPreviewUrl=null;
+let cropCalculating=false,cropCancelRequested=false;
 
 function setStatus(t){status.textContent=t}
 function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectURL(u);liveObjectUrls.clear()}
@@ -91,6 +92,8 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
+  stopCalculation:'Stop beregning', cropCancelled:'Beregning stoppet.', cropProgress:'Beregner præcisionssnit',
+
   cropLocking:'Lukker og låser polygon…', cropPreparing:'Forbereder polygon…', cropSplitting:'Beregner præcisionssnit…', cropBuilding:'Opbygger beskåret model…', cropLocked:'Polygon låst. Beregner snit…',
 
   precisionCropNote:'Præcisionssnit: frihåndskonturen lukkes automatisk, og trekanter deles ved klippelinjen.', preciseCropWorking:'Laver præcisionssnit…', preciseCropFallback:'Præcisionssnittet kunne ikke beregnes for dette område.',
@@ -152,6 +155,8 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
+  stopCalculation:'Berechnung stoppen', cropCancelled:'Berechnung gestoppt.', cropProgress:'Präzisionsschnitt wird berechnet',
+
   cropLocking:'Polygon wird geschlossen und gesperrt…', cropPreparing:'Polygon wird vorbereitet…', cropSplitting:'Präzisionsschnitt wird berechnet…', cropBuilding:'Beschnittenes Modell wird aufgebaut…', cropLocked:'Polygon gesperrt. Schnitt wird berechnet…',
 
   precisionCropNote:'Präzisionsschnitt: Die Freihandkontur wird automatisch geschlossen und die Dreiecke werden an der Schnittlinie geteilt.', preciseCropWorking:'Präzisionsschnitt wird berechnet…', preciseCropFallback:'Der Präzisionsschnitt konnte für diesen Bereich nicht berechnet werden.',
@@ -210,6 +215,8 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
+  stopCalculation:'Stop calculation', cropCancelled:'Calculation stopped.', cropProgress:'Calculating precision cut',
+
   cropLocking:'Closing and locking polygon…', cropPreparing:'Preparing polygon…', cropSplitting:'Calculating precision cut…', cropBuilding:'Building cropped model…', cropLocked:'Polygon locked. Calculating cut…',
 
   precisionCropNote:'Precision cut: the freehand contour is closed automatically and triangles are split at the cut line.', preciseCropWorking:'Creating precision cut…', preciseCropFallback:'The precision cut could not be calculated for this area.',
@@ -268,6 +275,8 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
+  stopCalculation:'Arrêter le calcul', cropCancelled:'Calcul arrêté.', cropProgress:'Calcul de la coupe de précision',
+
   cropLocking:'Fermeture et verrouillage du polygone…', cropPreparing:'Préparation du polygone…', cropSplitting:'Calcul de la coupe de précision…', cropBuilding:'Construction du modèle découpé…', cropLocked:'Polygone verrouillé. Calcul de la coupe…',
 
   precisionCropNote:'Coupe de précision : le contour à main levée est fermé automatiquement et les triangles sont divisés sur la ligne de coupe.', preciseCropWorking:'Calcul de la coupe de précision…', preciseCropFallback:'La coupe de précision n’a pas pu être calculée pour cette zone.',
@@ -842,12 +851,21 @@ function newProject(){
 }
 
 function updateCropButtons(){
-  $('startCropButton').disabled=!selectedModel||selectedModel.root.userData.locked||cropMode;
-  $('cancelCropButton').disabled=!cropMode;
-  const ready=cropMode&&cropPoints.length>=3;
-  $('cropInsideButton').disabled=!ready;$('cropOutsideButton').disabled=!ready;
+  const busy=cropCalculating;
+  $('freehandCropButton').disabled=busy;
+  $('polygonCropButton').disabled=busy;
+  $('startCropButton').disabled=busy||!selectedModel||selectedModel.root.userData.locked||cropMode;
+
+  const cancel=$('cancelCropButton');
+  cancel.disabled=busy?false:!cropMode;
+  cancel.textContent=busy?tr('stopCalculation'):tr('cancel');
+
+  const ready=!busy&&cropMode&&cropPoints.length>=3;
+  $('cropInsideButton').disabled=!ready;
+  $('cropOutsideButton').disabled=!ready;
 }
 function setCropTool(tool){
+  if(cropCalculating)return;
   cropTool=tool;cropPoints=[];cropDrawing=false;redrawCrop();
   $('freehandCropButton').classList.toggle('active',tool==='freehand');
   $('polygonCropButton').classList.toggle('active',tool==='polygon');
@@ -857,7 +875,7 @@ function setCropTool(tool){
   updateCropButtons();
 }
 function startCrop(){
-  if(!selectedEditable())return
+  if(cropCalculating||!selectedEditable())return
   cropMode=true;cropPoints=[];cropDrawing=false;cropPointerId=null;transform.detach();
   orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;
   renderer.domElement.style.pointerEvents='none';
@@ -867,6 +885,12 @@ function startCrop(){
   updateCropButtons();redrawCrop();setStatus(tr('cropActive'));
 }
 function cancelCrop(){
+  if(cropCalculating){
+    cropCancelRequested=true;
+    setStatus(tr('cropCancelled'));
+    updateCropButtons();
+    return;
+  }
   cropMode=false;cropPoints=[];cropDrawing=false;cropPointerId=null;
   renderer.domElement.style.pointerEvents='';
   cropInputLayer.classList.remove('active');cropOverlay.classList.remove('active');cropHint.classList.remove('active');
@@ -883,6 +907,7 @@ function redrawCrop(){
 }
 function pointFromEvent(e){const r=cropInputLayer.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function down(e){
+  if(cropCalculating)return;
   if(unwrapAreaMode){
     e.preventDefault();e.stopPropagation();
     const p=pointFromEvent(e);cropDrawing=true;cropPointerId=e.pointerId;unwrapAreaPoints=[p];cropPoints=unwrapAreaPoints;
@@ -901,6 +926,7 @@ function down(e){
   cropInputLayer.setPointerCapture?.(e.pointerId);redrawCrop();updateCropButtons();
 }
 function move(e){
+  if(cropCalculating)return;
   if(unwrapAreaMode){
     if(!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
     const p=pointFromEvent(e),last=unwrapAreaPoints[unwrapAreaPoints.length-1];
@@ -911,6 +937,7 @@ function move(e){
   if(!last||Math.hypot(p.x-last.x,p.y-last.y)>=4){cropPoints.push(p);redrawCrop();updateCropButtons()}
 }
 function up(e){
+  if(cropCalculating)return;
   if(unwrapAreaMode){
     if(!cropDrawing||e.pointerId!==cropPointerId)return;e.preventDefault();
     cropDrawing=false;cropInputLayer.releasePointerCapture?.(e.pointerId);cropPointerId=null;
@@ -1128,7 +1155,7 @@ function cropClassifyTriangle(sp,spec,edges){
   return 0;
 }
 
-function cropGeometry(mesh,spec,keepInside){
+async function cropGeometry(mesh,spec,keepInside){
   const g=mesh.geometry,pos=g.attributes?.position;if(!pos||!spec)return false;
   const idx=g.index?Array.from(g.index.array):Array.from({length:pos.count},(_,i)=>i);
   const attrNames=Object.keys(g.attributes);if(!attrNames.includes('position'))return false;
@@ -1155,7 +1182,14 @@ function cropGeometry(mesh,spec,keepInside){
   }
 
   let keptWhole=0,droppedWhole=0,boundaryCount=0;
+  const triTotal=Math.floor(idx.length/3);
   for(let io=0;io+2<idx.length;io+=3){
+    if(cropCancelRequested)return {cancelled:true,processed:Math.floor(io/3),total:triTotal};
+    if(io>0&&((io/3)%2000)===0){
+      setStatus(`${tr('cropProgress')} · ${Math.floor(io/3).toLocaleString()}/${triTotal.toLocaleString()} trekanter`);
+      await new Promise(r=>setTimeout(r,0));
+      if(cropCancelRequested)return {cancelled:true,processed:Math.floor(io/3),total:triTotal};
+    }
     const tri=[vertexAt(idx[io]),vertexAt(idx[io+1]),vertexAt(idx[io+2])];
     const sp=tri.map(v=>v._screen);
     const bbox={
@@ -1207,7 +1241,7 @@ function cropGeometry(mesh,spec,keepInside){
   oldGeo.dispose();
 
   mesh.userData.precisionStats={keptWhole,droppedWhole,boundaryCount};
-  return true;
+  return {cancelled:false,processed:triTotal,total:triTotal,keptWhole,droppedWhole,boundaryCount};
 }
 
 
@@ -1248,83 +1282,98 @@ function finishCropAfterCalculation(){
 }
 
 async function applyCrop(keepInside){
-  if(!selectedEditable()||cropPoints.length<3)return;
+  if(cropCalculating||!selectedEditable()||cropPoints.length<3)return;
 
-  setStatus(tr('cropLocking'));
-  if(!finalizeCropContour()){
-    finishCropAfterCalculation();
-    setStatus(tr('preciseCropFallback'));
-    return;
-  }
-
-  // Give Safari/iPad one frame to paint the visibly closed/locked polygon.
-  await new Promise(requestAnimationFrame);
-
-  setStatus(tr('cropPreparing'));
-  await new Promise(r=>setTimeout(r,0));
-
-  const preparedContour=cropPrepareContour(cropPoints);
-  if(!preparedContour){
-    finishCropAfterCalculation();
-    setStatus(tr('preciseCropFallback'));
-    return;
-  }
-  setStatus(`${tr('cropPreparing')} ${preparedContour.length} punkter`);
-  await new Promise(r=>setTimeout(r,0));
-
-  const spec=makeCropClipSpec(preparedContour);
-  if(!spec){
-    finishCropAfterCalculation();
-    setStatus(tr('preciseCropFallback'));
-    return;
-  }
-
-  setStatus(tr('cropSplitting'));
-  await new Promise(r=>setTimeout(r,0));
-
-  const original=selectedModel;
-  const clone=original.root.clone(true);
-  clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry=o.geometry.clone()});
-  clone.updateMatrixWorld(true);
-
-  // Process one mesh at a time and yield between meshes so the UI stays alive.
-  const meshes=[];
-  clone.traverse(o=>{if(o.isMesh)meshes.push(o)});
-  for(let i=0;i<meshes.length;i++){
-    cropGeometry(meshes[i],spec,keepInside);
-    const st=meshes[i].userData.precisionStats||{};
-    setStatus(`${tr('cropSplitting')} ${i+1}/${meshes.length} · kant: ${st.boundaryCount||0}`);
-    await new Promise(r=>setTimeout(r,0));
-  }
-
-  setStatus(tr('cropBuilding'));
-  await new Promise(r=>setTimeout(r,0));
-
-  const originalWasVisible=original.root.visible;
-  original.root.visible=false;
-  const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true,frame:false});
-
-  pushHistory({
-    label:'beskæring',
-    undo:()=>{
-      scene.remove(m.root);
-      const i=models.indexOf(m);if(i>=0)models.splice(i,1);
-      original.root.visible=originalWasVisible;
-      selectModel(original);rebuildModelList();
-    },
-    redo:()=>{
-      if(!models.includes(m)){models.push(m);scene.add(m.root)}
-      original.root.visible=false;
-      selectModel(m);rebuildModelList();
-    }
-  });
-
-  finishCropAfterCalculation();
-  cropPoints=[];
-  redrawCrop();
+  cropCalculating=true;
+  cropCancelRequested=false;
   updateCropButtons();
-  selectModel(m);
-  setStatus(tr('cropCreated'));
+
+  let clone=null;
+  try{
+    setStatus(tr('cropLocking'));
+    if(!finalizeCropContour())throw new Error(tr('preciseCropFallback'));
+
+    await new Promise(requestAnimationFrame);
+    if(cropCancelRequested)return;
+
+    setStatus(tr('cropPreparing'));
+    await new Promise(r=>setTimeout(r,0));
+
+    const preparedContour=cropPrepareContour(cropPoints);
+    if(!preparedContour)throw new Error(tr('preciseCropFallback'));
+
+    setStatus(`${tr('cropPreparing')} ${preparedContour.length} punkter`);
+    await new Promise(r=>setTimeout(r,0));
+    if(cropCancelRequested)return;
+
+    const spec=makeCropClipSpec(preparedContour);
+    if(!spec)throw new Error(tr('preciseCropFallback'));
+
+    const original=selectedModel;
+    clone=original.root.clone(true);
+    clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry=o.geometry.clone()});
+    clone.updateMatrixWorld(true);
+
+    const meshes=[];
+    clone.traverse(o=>{if(o.isMesh)meshes.push(o)});
+
+    for(let i=0;i<meshes.length;i++){
+      setStatus(`${tr('cropSplitting')} ${i+1}/${meshes.length}`);
+      const result=await cropGeometry(meshes[i],spec,keepInside);
+      if(result?.cancelled||cropCancelRequested){
+        clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry.dispose()});
+        clone=null;
+        setStatus(tr('cropCancelled'));
+        return;
+      }
+      setStatus(`${tr('cropSplitting')} ${i+1}/${meshes.length} · kant: ${result?.boundaryCount||0}`);
+      await new Promise(r=>setTimeout(r,0));
+    }
+
+    if(cropCancelRequested){
+      clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry.dispose()});
+      clone=null;
+      setStatus(tr('cropCancelled'));
+      return;
+    }
+
+    setStatus(tr('cropBuilding'));
+    await new Promise(r=>setTimeout(r,0));
+
+    const originalWasVisible=original.root.visible;
+    original.root.visible=false;
+    const m=addModel(clone,`${original.name} – beskåret`,{prepared:true,cropped:true,frame:false});
+    clone=null;
+
+    pushHistory({
+      label:'beskæring',
+      undo:()=>{
+        scene.remove(m.root);
+        const i=models.indexOf(m);if(i>=0)models.splice(i,1);
+        original.root.visible=originalWasVisible;
+        selectModel(original);rebuildModelList();
+      },
+      redo:()=>{
+        if(!models.includes(m)){models.push(m);scene.add(m.root)}
+        original.root.visible=false;
+        selectModel(m);rebuildModelList();
+      }
+    });
+
+    cropPoints=[];
+    redrawCrop();
+    selectModel(m);
+    setStatus(tr('cropCreated'));
+  }catch(err){
+    console.error(err);
+    if(clone)clone.traverse(o=>{if(o.isMesh&&o.geometry)o.geometry.dispose()});
+    setStatus(err?.message||tr('preciseCropFallback'));
+  }finally{
+    cropCalculating=false;
+    cropCancelRequested=false;
+    finishCropAfterCalculation();
+    updateCropButtons();
+  }
 }
 
 async function exportPng(){
