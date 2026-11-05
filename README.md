@@ -221,3 +221,81 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Overflødige statusnøgler og kommentarer er ryddet op.
 - Cache-busting og versionsnumre er opdateret.
 - JavaScript-syntaks, dublerede navngivne funktioner og ZIP-indhold er kontrolleret.
+
+## v0.2.33 — robust PNG/billedeksport på iPad
+- Almindelig billedeksport bruger nu samme robuste to-trinsmodel som friseeksport.
+- Først renderes hele billedet færdigt.
+- Derefter vises dialogen **Billedet er klar**.
+- Et nyt fysisk tryk på **Gem PNG** eller **Del / Gem til Fotos** udfører selve fil-/delehandlingen.
+- Dette undgår Safari/iPad-problemet hvor brugeraktiveringen udløber under lang højopløsningsrendering.
+- Renderingskvalitet, fliseeksport, skala, nordpil og originale teksturer er uændret.
+
+## v0.2.34 — sikker eksportstørrelse
+- Problemet efter sidste renderflise på iPad var den endelige 2D-canvas, ikke WebGL-fliserne.
+- 50.000 × 50.000 px kræver ca. 10 GB rå RGBA-data og kan ikke samles i Safari.
+- ArchaeoPlan begrænser nu **samlet pixelantal**, ikke kun bredde/højde hver for sig.
+- iPad/iPhone: ca. 48 megapixel maksimum for den samlede PNG-canvas.
+- Desktop: ca. 120 megapixel maksimum.
+- Hvis brugeren indtaster mere, bevares billedformatet og dimensionerne skaleres automatisk ned.
+- Brugerfladen viser altid **Faktisk eksport: B × H px** før rendering.
+- v0.2.33's to-trins Gem/Del-dialog er bevaret.
+
+## v0.2.35 — enkel eksport efter slutmedie
+- Eksportpanelet er gjort mere tilgængeligt.
+- Fem hovedvalg: **Skærm / PowerPoint**, **Bog / artikel**, **Plakat**, **Udstilling**, **Brugerdefineret**.
+- Relevante størrelser vises som presets i stedet for at kræve manuel pixelindtastning.
+- Bog/plakat bruger som standard 300 dpi.
+- Udstilling bruger som standard 150 dpi.
+- Skærm/PowerPoint tilbyder Full HD, QHD og 4K.
+- Fysisk størrelse omregnes automatisk til pixels.
+- Avancerede pixel-, format- og presetvalg er bevaret under **Avanceret…**.
+- Brugerfladen viser stadig faktisk eksportstørrelse efter enhedens sikre hukommelsesgrænse.
+- Den eksisterende højopløsningsrendering, originalteksturer, målestok, nordpil og to-trins Gem/Del-dialog er bevaret.
+
+## v0.2.36 — repareret filindlæsning og versionsvisning
+- Fejlen i v0.2.35 var ikke `loadFiles()` selv.
+- Den nye eksportsektion havde ved en fejl fjernet HTML-kontrollerne for målestok og nordpil.
+- JavaScript stoppede derfor ved opstart, før programmet kunne fungere normalt, herunder **Tilføj fil**.
+- Målestok/nordpil er genetableret uden at ændre eksportmotoren.
+- Den nye formålsbaserede eksportmenu fra v0.2.35 er bevaret.
+- Statuslinjen nederst viser nu korrekt **ArchaeoPlan v0.2.36 klar.**
+
+## v0.2.37 — robust og synlig projektgemning
+- Projektgemning giver nu straks synlig respons.
+- Under GLB-eksport vises en modal med fremdrift model for model.
+- Safari får et render-yield før den tunge eksport starter.
+- Den færdige `.archaeoplan` åbner fortsat en separat dialog, så iPad får et nyt fysisk brugertryk før **Gem i Filer**.
+- Fejl vises nu i en tydelig dialog i stedet for kun i den lille statuslinje.
+- En færdigpakket projektfil beholdes ved gemmefejl, så gemningen kan forsøges igen uden ny GLB-eksport.
+- De nye eksportvalg (formål/preset/dpi) gemmes nu også i projektet, men gamle projektfiler er fortsat kompatible.
+
+
+## v0.2.38 — tættere og mere jævn overfladeudfoldning
+- `Udfold overflade` underinddeler nu midlertidigt store trekanter, når de spænder for langt rundt om objektets akse.
+- Underinddelingen er adaptiv: kun trekanter med stor vinkeludstrækning deles.
+- Målet er ca. 0,5° vinkeltrin, med en sikker maksimal dybde og en samlet trekantgrænse for at beskytte iPad-hukommelsen.
+- Nye punkter beregnes på den eksisterende mesh-trekant; der opfindes ingen ny scanninggeometri.
+- UV-koordinater og vertex-farver interpoleres, så original tekstur følger med gennem underinddelingen.
+- Originalmodellen ændres ikke. Forbedringen findes kun i den midlertidige udfoldede kopi.
+- Beskæring, projektfiler, kamera, eksport og øvrige værktøjer er ikke ændret.
+
+
+## v0.2.39 – vektor-tegneark
+- Nyt 2D-vektorlag bundet til en ortografisk visning.
+- Frihånd, linje og polyline.
+- Fire stregtyper: sammenhængende, stiplet, streg-prik og lang-kort.
+- Farve, stregtykkelse, simple lag, synlighed, valg/flyt og slet.
+- Undo/redo for tegning, flytning og sletning.
+- Tegningen gemmes i .archaeoplan-projektet.
+- SVG-eksport og valgfri medtagelse i PNG-eksport.
+- Første version er et låst ortografisk tegneark; 3D-fastgjorte annotationer kommer senere.
+
+## v0.2.40 – knudepunkter og zoom i tegnearket
+- Valgte vektorer viser alle deres knudepunkter.
+- Et enkelt knudepunkt kan trækkes uden at flytte resten af linjen.
+- **Tilføj knudepunkt**: klik/tryk på et segment for at indsætte et nyt punkt præcist på segmentet.
+- **Fjern knudepunkt**: klik/tryk på et eksisterende punkt for at fjerne det. En linje bevarer mindst to punkter.
+- **Panorér** flytter arbejdsvisningen uden at ændre vektorgeometrien.
+- Zoomknapper `− / % / +` giver op til 32× zoom i tegnearket; midterknappen nulstiller til tegnearkets oprindelige visning.
+- Musehjul/trackpad kan også zoome, når tegnearket er aktivt.
+- Flytning af hele den valgte vektor er bevaret: træk på selve linjen i **Vælg / flyt**.

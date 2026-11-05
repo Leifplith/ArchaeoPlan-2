@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.39</title>
-  <link rel="stylesheet" href="style.css?v=0.2.39">
+  <title>ArchaeoPlan v0.2.40</title>
+  <link rel="stylesheet" href="style.css?v=0.2.40">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.39</span>
+      <span class="version">v0.2.40</span>
     </div>
     <div class="header-actions">
 
@@ -151,9 +151,19 @@
       </div>
       <div class="button-grid two drawing-tools">
         <button id="drawingSelectButton" class="active">Vælg / flyt</button>
+        <button id="drawingPanButton">Panorér</button>
         <button id="drawingFreehandButton">Frihånd</button>
         <button id="drawingLineButton">Linje</button>
         <button id="drawingPolylineButton">Polyline</button>
+      </div>
+      <div class="button-grid two drawing-node-tools">
+        <button id="drawingAddNodeButton">Tilføj knudepunkt</button>
+        <button id="drawingRemoveNodeButton">Fjern knudepunkt</button>
+      </div>
+      <div class="drawing-zoom-row">
+        <button id="drawingZoomOutButton" title="Zoom ud">−</button>
+        <button id="drawingZoomResetButton" title="Nulstil zoom">100 %</button>
+        <button id="drawingZoomInButton" title="Zoom ind">+</button>
       </div>
       <button id="drawingFinishPolylineButton" disabled>Afslut polyline</button>
       <div class="field-grid two drawing-fields">
@@ -329,7 +339,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.39 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.40 klar.</div>
   </main>
 </div>
 
@@ -341,7 +351,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.39"></script>
+<script type="module" src="app.js?v=0.2.40"></script>
 
 
 <dialog id="projectPreparingDialog" class="project-save-dialog">

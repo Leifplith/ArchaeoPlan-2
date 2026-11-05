@@ -202,3 +202,15 @@ select {
 .drawing-layer-row button{height:34px;padding:3px;font-size:18px}
 #drawingFinishPolylineButton{width:100%;margin-bottom:7px}
 #drawingSection.drawing-active{background:#eef7fd;margin-left:-6px;margin-right:-6px;padding-left:6px;padding-right:6px;border-radius:8px}
+
+/* v0.2.40 node editing + drawing navigation */
+#drawingOverlay.pan-tool{cursor:grab}
+#drawingOverlay.pan-tool:active{cursor:grabbing}
+#drawingOverlay.add-node-tool{cursor:copy}
+#drawingOverlay.remove-node-tool{cursor:not-allowed}
+#drawingSelection .drawing-node{fill:#fff;stroke:#1677b8;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
+#drawingSelection .drawing-node.selected-node{fill:#1677b8;stroke:#fff;stroke-width:2.5}
+.drawing-node-tools{margin-top:2px}
+.drawing-zoom-row{display:grid;grid-template-columns:42px minmax(72px,1fr) 42px;gap:6px;margin:4px 0 7px}
+.drawing-zoom-row button{padding:6px 8px}
+#drawingZoomResetButton{font-size:12px}
