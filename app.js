@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.40';
+const VERSION='0.2.41';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -93,6 +93,7 @@ let drawingSheetView=null,drawingPlanePoint=null,drawingPlaneNormal=null,drawing
 let drawingLayers=[{id:'layer-1',name:'Lag 1',visible:true}],drawingActiveLayerId='layer-1',drawingNextLayer=2,drawingNextObject=1;
 let drawingPointerId=null,drawingDragStart=null,drawingDragOriginal=null,drawingLastClient=null;
 let drawingSelectedPointIndex=null,drawingDragMode=null,drawingPanLast=null;
+let drawingTouchPointers=new Map(),drawingPinch=null;
 
 
 function setStatus(t){status.textContent=t}
@@ -1714,14 +1715,45 @@ function drawingScreenPoint(p,cam=camera,w=null,h=null){
   const q=new THREE.Vector3(p.x,p.y,p.z).project(cam);
   return {x:(q.x*.5+.5)*W,y:(-q.y*.5+.5)*H};
 }
-function drawingWorldPointFromEvent(e){
+function drawingWorldPointFromClient(clientX,clientY){
   if(!drawingPlanePoint||!drawingPlaneNormal)return null;
   const r=renderer.domElement.getBoundingClientRect();
-  drawingNdc.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+  drawingNdc.set(((clientX-r.left)/r.width)*2-1,-((clientY-r.top)/r.height)*2+1);
   drawingRaycaster.setFromCamera(drawingNdc,camera);
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3().fromArray(drawingPlaneNormal),new THREE.Vector3().fromArray(drawingPlanePoint));
   const hit=new THREE.Vector3();
   return drawingRaycaster.ray.intersectPlane(plane,hit)?hit:null;
+}
+function drawingWorldPointFromEvent(e){return drawingWorldPointFromClient(e.clientX,e.clientY)}
+function drawingTouchPair(){
+  const pts=[...drawingTouchPointers.values()];if(pts.length<2)return null;
+  const a=pts[0],b=pts[1],dx=b.x-a.x,dy=b.y-a.y;
+  return {distance:Math.max(1,Math.hypot(dx,dy)),centerX:(a.x+b.x)/2,centerY:(a.y+b.y)/2};
+}
+function drawingAbortSingleGestureForPinch(){
+  if(drawingTool==='select'&&drawingSelectedId&&drawingDragOriginal){
+    const o=drawingObjects.find(x=>x.id===drawingSelectedId);if(o)o.points=drawingClonePoints(drawingDragOriginal);
+  }
+  drawingDraft=null;drawingPointerId=null;drawingDragMode=null;drawingDragStart=null;drawingDragOriginal=null;drawingPanLast=null;drawingLastClient=null;
+}
+function beginDrawingPinch(){
+  const pair=drawingTouchPair();if(!pair||!camera.isOrthographicCamera)return;
+  drawingAbortSingleGestureForPinch();
+  drawingPinch={distance:pair.distance,startZoom:camera.zoom,lastCenterX:pair.centerX,lastCenterY:pair.centerY};
+  renderDrawingOverlay();
+}
+function updateDrawingPinch(){
+  if(!drawingPinch||!camera.isOrthographicCamera)return;
+  const pair=drawingTouchPair();if(!pair)return;
+  const before=drawingWorldPointFromClient(drawingPinch.lastCenterX,drawingPinch.lastCenterY);
+  const base=Math.max(1e-9,drawingSheetView?.zoom||1),min=base*.25,max=base*32;
+  camera.zoom=Math.max(min,Math.min(max,drawingPinch.startZoom*(pair.distance/drawingPinch.distance)));
+  camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
+  const after=drawingWorldPointFromClient(pair.centerX,pair.centerY);
+  if(before&&after){const d=before.clone().sub(after);camera.position.add(d);orbit.target.add(d)}
+  camera.updateMatrixWorld(true);orbit.update();
+  drawingPinch.lastCenterX=pair.centerX;drawingPinch.lastCenterY=pair.centerY;
+  renderDrawingOverlay();updateDrawingZoomUi();
 }
 function drawingPathData(points,cam=camera,w=null,h=null){
   if(!points?.length)return '';
@@ -1814,10 +1846,10 @@ function startDrawingSheet(){
     drawingSheetSize={width:Math.max(1,renderer.domElement.getBoundingClientRect().width),height:Math.max(1,renderer.domElement.getBoundingClientRect().height)};
     const n=orbit.target.clone().sub(camera.position).normalize();drawingPlaneNormal=n.toArray();drawingPlanePoint=orbit.target.toArray();
   }else applyDrawingCameraView(drawingSheetView);
-  drawingActive=true;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDraft=null;drawingDragMode=null;drawingPanLast=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;setDrawingInteractionLock(true);updateDrawingUi();setStatus(tr('drawingActiveStatus'));
+  drawingActive=true;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDraft=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;setDrawingInteractionLock(true);updateDrawingUi();setStatus(tr('drawingActiveStatus'));
 }
 function stopDrawingSheet(){
-  if(!drawingActive)return;finishDrawingPolyline(false);drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;
+  if(!drawingActive)return;finishDrawingPolyline(false);drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;
   orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode&&!drawingActive)transform.attach(selectedModel.root);updateDrawingUi();setStatus(tr('drawingClosedStatus'));
 }
 function setDrawingTool(tool){
@@ -1862,7 +1894,14 @@ function removeDrawingNodeAtEvent(e){
   pushHistory({label:'fjern knudepunkt',undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);drawingSelectedId=id;drawingSelectedPointIndex=removedIndex;renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);drawingSelectedId=id;drawingSelectedPointIndex=Math.min(removedIndex,after.length-1);renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingNodeRemoved'));
 }
 function drawingPointerDown(e){
-  if(!drawingActive)return;e.preventDefault();e.stopPropagation();const world=drawingWorldPointFromEvent(e);if(!world)return;
+  if(!drawingActive)return;e.preventDefault();e.stopPropagation();
+  if(e.pointerType==='touch'){
+    drawingTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    try{$('drawingOverlay').setPointerCapture?.(e.pointerId)}catch(_){ }
+    if(drawingTouchPointers.size>=2){beginDrawingPinch();return}
+  }
+  if(drawingPinch)return;
+  const world=drawingWorldPointFromEvent(e);if(!world)return;
   if(drawingTool==='addnode'){addDrawingNodeAtEvent(e);return}
   if(drawingTool==='removenode'){removeDrawingNodeAtEvent(e);return}
   drawingPointerId=e.pointerId;$('drawingOverlay').setPointerCapture?.(e.pointerId);
@@ -1878,7 +1917,12 @@ function drawingPointerDown(e){
   drawingDraft={type:drawingTool,points:[{x:world.x,y:world.y,z:world.z}],...style};if(drawingTool==='line')drawingDraft.points.push({x:world.x,y:world.y,z:world.z});drawingLastClient={x:e.clientX,y:e.clientY};renderDrawingOverlay();
 }
 function drawingPointerMove(e){
-  if(!drawingActive||e.pointerId!==drawingPointerId)return;e.preventDefault();const world=drawingWorldPointFromEvent(e);if(!world)return;
+  if(!drawingActive)return;
+  if(e.pointerType==='touch'&&drawingTouchPointers.has(e.pointerId)){
+    drawingTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(drawingPinch||drawingTouchPointers.size>=2){e.preventDefault();if(!drawingPinch)beginDrawingPinch();updateDrawingPinch();return}
+  }
+  if(drawingPinch||e.pointerId!==drawingPointerId)return;e.preventDefault();const world=drawingWorldPointFromEvent(e);if(!world)return;
   if(drawingDragMode==='pan'&&drawingPanLast){const d=drawingPanLast.clone().sub(world);camera.position.add(d);orbit.target.add(d);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();return}
   if(drawingTool==='select'&&drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId);if(!o)return;
     if(drawingDragMode==='node'&&Number.isInteger(drawingSelectedPointIndex)){o.points=drawingClonePoints(drawingDragOriginal);o.points[drawingSelectedPointIndex]={x:world.x,y:world.y,z:world.z};renderDrawingOverlay();return}
@@ -1891,7 +1935,12 @@ function drawingPointerMove(e){
   }
 }
 function drawingPointerUp(e){
-  if(!drawingActive||e.pointerId!==drawingPointerId)return;e.preventDefault();try{$('drawingOverlay').releasePointerCapture?.(e.pointerId)}catch(_){ }drawingPointerId=null;
+  if(!drawingActive)return;
+  if(e.pointerType==='touch'&&drawingTouchPointers.has(e.pointerId)){
+    drawingTouchPointers.delete(e.pointerId);try{$('drawingOverlay').releasePointerCapture?.(e.pointerId)}catch(_){ }
+    if(drawingPinch){e.preventDefault();if(drawingTouchPointers.size<2)drawingPinch=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;renderDrawingOverlay();return}
+  }
+  if(e.pointerId!==drawingPointerId)return;e.preventDefault();try{$('drawingOverlay').releasePointerCapture?.(e.pointerId)}catch(_){ }drawingPointerId=null;
   if(drawingDragMode==='pan'){drawingDragMode=null;drawingPanLast=null;return}
   if(drawingTool==='select'){
     if(drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId),before=drawingClonePoints(drawingDragOriginal),after=drawingClonePoints(o?.points);if(o&&JSON.stringify(before)!==JSON.stringify(after)){const id=o.id,label=drawingDragMode==='node'?'flyt knudepunkt':'flyt vektor';pushHistory({label,undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);renderDrawingOverlay()}})}}drawingDragStart=null;drawingDragOriginal=null;drawingDragMode=null;return;
@@ -1918,9 +1967,9 @@ function deleteDrawingLayer(){
 function setDrawingLayerVisibility(v){const l=drawingLayer(drawingActiveLayerId);if(l){l.visible=!!v;if(!l.visible&&drawingObjects.find(o=>o.id===drawingSelectedId)?.layerId===l.id){drawingSelectedId=null;drawingSelectedPointIndex=null;}renderDrawingOverlay()}}
 function drawingProjectData(){return{sheetView:drawingSheetView?JSON.parse(JSON.stringify(drawingSheetView)):null,planePoint:drawingPlanePoint?[...drawingPlanePoint]:null,planeNormal:drawingPlaneNormal?[...drawingPlaneNormal]:null,sheetSize:{...drawingSheetSize},objects:drawingObjects.map(drawingObjectClone),layers:drawingLayers.map(l=>({...l})),activeLayerId:drawingActiveLayerId,nextLayer:drawingNextLayer,nextObject:drawingNextObject,includeExport:$('drawingIncludeExport')?.checked!==false}}
 function restoreDrawingProjectData(d){
-  drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=d?.sheetView||null;drawingPlanePoint=d?.planePoint||null;drawingPlaneNormal=d?.planeNormal||null;drawingSheetSize=d?.sheetSize||{width:1,height:1};drawingObjects=Array.isArray(d?.objects)?d.objects.map(drawingObjectClone):[];drawingLayers=Array.isArray(d?.layers)&&d.layers.length?d.layers.map(l=>({...l})):[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId=drawingLayer(d?.activeLayerId)?.id||drawingLayers[0].id;drawingNextLayer=d?.nextLayer||drawingLayers.length+1;drawingNextObject=d?.nextObject||drawingObjects.length+1;if($('drawingIncludeExport'))$('drawingIncludeExport').checked=d?.includeExport!==false;setDrawingInteractionLock(false);updateDrawingUi();
+  drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;drawingSheetView=d?.sheetView||null;drawingPlanePoint=d?.planePoint||null;drawingPlaneNormal=d?.planeNormal||null;drawingSheetSize=d?.sheetSize||{width:1,height:1};drawingObjects=Array.isArray(d?.objects)?d.objects.map(drawingObjectClone):[];drawingLayers=Array.isArray(d?.layers)&&d.layers.length?d.layers.map(l=>({...l})):[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId=drawingLayer(d?.activeLayerId)?.id||drawingLayers[0].id;drawingNextLayer=d?.nextLayer||drawingLayers.length+1;drawingNextObject=d?.nextObject||drawingObjects.length+1;if($('drawingIncludeExport'))$('drawingIncludeExport').checked=d?.includeExport!==false;setDrawingInteractionLock(false);updateDrawingUi();
 }
-function resetDrawingProject(){drawingActive=false;drawingTool='select';drawingObjects=[];drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=null;drawingPlanePoint=null;drawingPlaneNormal=null;drawingSheetSize={width:1,height:1};drawingLayers=[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId='layer-1';drawingNextLayer=2;drawingNextObject=1;drawingPointerId=null;orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);updateDrawingUi()}
+function resetDrawingProject(){drawingActive=false;drawingTool='select';drawingObjects=[];drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=null;drawingPlanePoint=null;drawingPlaneNormal=null;drawingSheetSize={width:1,height:1};drawingLayers=[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId='layer-1';drawingNextLayer=2;drawingNextObject=1;drawingPointerId=null;drawingTouchPointers.clear();drawingPinch=null;orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);updateDrawingUi()}
 function drawingCameraForSvg(){
   if(!drawingSheetView?.orthoBounds)return null;const b=drawingSheetView.orthoBounds,c=new THREE.OrthographicCamera(b.left,b.right,b.top,b.bottom,drawingSheetView.near??-1e7,drawingSheetView.far??1e7);c.position.fromArray(drawingSheetView.position);c.quaternion.fromArray(drawingSheetView.quaternion);c.up.fromArray(drawingSheetView.up);c.zoom=drawingSheetView.zoom||1;c.updateProjectionMatrix();c.updateMatrixWorld(true);return c;
 }

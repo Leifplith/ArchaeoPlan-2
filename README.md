@@ -290,7 +290,7 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - SVG-eksport og valgfri medtagelse i PNG-eksport.
 - Første version er et låst ortografisk tegneark; 3D-fastgjorte annotationer kommer senere.
 
-## v0.2.40 – knudepunkter og zoom i tegnearket
+## v0.2.41 – knudepunkter og zoom i tegnearket
 - Valgte vektorer viser alle deres knudepunkter.
 - Et enkelt knudepunkt kan trækkes uden at flytte resten af linjen.
 - **Tilføj knudepunkt**: klik/tryk på et segment for at indsætte et nyt punkt præcist på segmentet.
@@ -299,3 +299,8 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Zoomknapper `− / % / +` giver op til 32× zoom i tegnearket; midterknappen nulstiller til tegnearkets oprindelige visning.
 - Musehjul/trackpad kan også zoome, når tegnearket er aktivt.
 - Flytning af hele den valgte vektor er bevaret: træk på selve linjen i **Vælg / flyt**.
+
+
+## v0.2.41
+- iPad: to-finger pinch zoom and simultaneous two-finger pan now work while the drawing sheet is active.
+- Drawing with Apple Pencil / one pointer remains separate from navigation.
