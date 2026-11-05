@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.37';
+const VERSION='0.2.38';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -518,6 +518,61 @@ function beginUnwrapArea(){if(!selectedModel){setStatus(tr('unwrapNeedModel'));r
 function clearUnwrapArea(){unwrapAreaMode=false;unwrapAreaPoints=[];cropPoints=[];cropDrawing=false;cropPointerId=null;renderer.domElement.style.pointerEvents='';cropInputLayer.classList.remove('active');cropOverlay.classList.remove('active');cropHint.classList.remove('active');orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;redrawCrop();setStatus(tr('unwrapAreaCleared'));if(selectedModel&&!selectedModel.root.userData.locked)transform.attach(selectedModel.root)}
 function pointInsideScreenPolygon(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.y>y)!==(b.y>y))&&(x<(b.x-a.x)*(y-a.y)/((b.y-a.y)||1e-12)+a.x))inside=!inside}return inside}
 function triangleAllowedByArea(p0,p1,p2){if(!unwrapAreaPoints.length)return true;const c=p0.clone().add(p1).add(p2).multiplyScalar(1/3).project(camera),r=renderer.domElement.getBoundingClientRect();return pointInsideScreenPolygon((c.x*.5+.5)*r.width,(-c.y*.5+.5)*r.height,unwrapAreaPoints)}
+function unwrapSourceVertex(p,uv,col,vi){
+  return {
+    p:p.clone(),
+    uv:uv?new THREE.Vector2(uv.getX(vi),uv.getY(vi)):null,
+    c:col?new THREE.Vector3(col.getX(vi),col.getY(vi),col.getZ(vi)):null
+  };
+}
+function unwrapMidVertex(a,b){
+  return {
+    p:a.p.clone().lerp(b.p,.5),
+    uv:(a.uv&&b.uv)?a.uv.clone().lerp(b.uv,.5):null,
+    c:(a.c&&b.c)?a.c.clone().lerp(b.c,.5):null
+  };
+}
+function unwrapOffsetsForTriangle(a,b,c,center,axis,start,reverse){
+  const centroid=a.p.clone().add(b.p).add(c.p).multiplyScalar(1/3);
+  const co=angleOffset(angleForPoint(centroid,center,axis),start,reverse);
+  const verts=[a,b,c],offs=[];
+  for(const v of verts){
+    let off=angleOffset(angleForPoint(v.p,center,axis),start,reverse);
+    while(off-co>Math.PI)off-=Math.PI*2;
+    while(co-off>Math.PI)off+=Math.PI*2;
+    offs.push(off);
+  }
+  return {co,offs};
+}
+function emitAdaptiveUnwrapTriangle(a,b,c,ctx,depth=0){
+  const {center,axis,start,reverse,targetAngle,maxDepth,maxTriangles,stats,emit}=ctx;
+  const {co,offs}=unwrapOffsetsForTriangle(a,b,c,center,axis,start,reverse);
+  const d01=Math.abs(offs[0]-offs[1]),d12=Math.abs(offs[1]-offs[2]),d20=Math.abs(offs[2]-offs[0]);
+  const widest=Math.max(d01,d12,d20);
+
+  // Cylindrical unwrap is non-linear. Large source triangles therefore need
+  // temporary subdivision before projection, otherwise they become visibly
+  // flat facets in the unwrapped relief. Split only as much as needed.
+  if(widest<=targetAngle||depth>=maxDepth||stats.triangles>=maxTriangles){
+    stats.triangles++;
+    emit(a,b,c,co);
+    return;
+  }
+
+  if(d01>=d12&&d01>=d20){
+    const m=unwrapMidVertex(a,b);
+    emitAdaptiveUnwrapTriangle(a,m,c,ctx,depth+1);
+    emitAdaptiveUnwrapTriangle(m,b,c,ctx,depth+1);
+  }else if(d12>=d20){
+    const m=unwrapMidVertex(b,c);
+    emitAdaptiveUnwrapTriangle(a,b,m,ctx,depth+1);
+    emitAdaptiveUnwrapTriangle(a,m,c,ctx,depth+1);
+  }else{
+    const m=unwrapMidVertex(c,a);
+    emitAdaptiveUnwrapTriangle(a,b,m,ctx,depth+1);
+    emitAdaptiveUnwrapTriangle(m,b,c,ctx,depth+1);
+  }
+}
 function buildUnwrappedGroup(){
   if(!selectedModel)return null;
   const axis=$('unwrapAxis').value,box=selectedModelWorldBox();if(!box)return null;
@@ -527,19 +582,49 @@ function buildUnwrappedGroup(){
   selectedModel.root.updateWorldMatrix(true,true);
   selectedModel.root.traverse(obj=>{if(!obj.isMesh||!obj.geometry?.attributes?.position)return;const geo=obj.geometry.index?obj.geometry.toNonIndexed():obj.geometry.clone(),pos=geo.attributes.position,uv=geo.attributes.uv,col=geo.attributes.color,verts=[];for(let i=0;i<pos.count;i++){const p=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(obj.matrixWorld);verts.push(p);const rr=info.radial(p,center);radiusSum+=Math.hypot(rr.u,rr.v);radiusCount++;const ax=info.axial(p);axisMin=Math.min(axisMin,ax);axisMax=Math.max(axisMax,ax)}meshes.push({obj,geo,verts,uv,col})});
   if(!meshes.length||!radiusCount)return null;
-  const refRadius=Math.max(radiusSum/radiusCount,1e-6),out=new THREE.Group();let kept=0,minDepth=Infinity,maxDepth=-Infinity;
+
+  const refRadius=Math.max(radiusSum/radiusCount,1e-6),out=new THREE.Group();
+  const targetAngle=THREE.MathUtils.degToRad(.5),maxDepth=7,maxTriangles=1500000;
+  const stats={triangles:0,sourceTriangles:0};
+  let kept=0,minDepth=Infinity,maxDepthValue=-Infinity;
+
   for(const item of meshes){
     const {obj,geo,verts,uv,col}=item,mats=Array.isArray(obj.material)?obj.material:[obj.material],buckets=new Map(),triCount=Math.floor(verts.length/3);
     for(let t=0;t<triCount;t++){
       const p0=verts[t*3],p1=verts[t*3+1],p2=verts[t*3+2];if(!triangleAllowedByArea(p0,p1,p2))continue;
       const centroid=p0.clone().add(p1).add(p2).multiplyScalar(1/3),co=angleOffset(angleForPoint(centroid,center,axis),start,unwrapReverse);if(!full&&co>span)continue;
       const mi=materialIndexForTriangle(geo,t);if(!buckets.has(mi))buckets.set(mi,{p:[],uv:[],c:[]});const b=buckets.get(mi);
-      for(let k=0;k<3;k++){const vi=t*3+k,p=verts[vi],rr=info.radial(p,center),radius=Math.hypot(rr.u,rr.v);let off=angleOffset(angleForPoint(p,center,axis),start,unwrapReverse);while(off-co>Math.PI)off-=Math.PI*2;while(co-off>Math.PI)off+=Math.PI*2;const x=off*refRadius,y=info.axial(p)-axisMin,z=radius-refRadius;minDepth=Math.min(minDepth,z);maxDepth=Math.max(maxDepth,z);b.p.push(x,y,z);if(uv)b.uv.push(uv.getX(vi),uv.getY(vi));if(col)b.c.push(col.getX(vi),col.getY(vi),col.getZ(vi))}
-      kept++;
+      const a=unwrapSourceVertex(p0,uv,col,t*3),bv=unwrapSourceVertex(p1,uv,col,t*3+1),c=unwrapSourceVertex(p2,uv,col,t*3+2);
+      stats.sourceTriangles++;
+
+      emitAdaptiveUnwrapTriangle(a,bv,c,{
+        center,axis,start,reverse:unwrapReverse,targetAngle,maxDepth,maxTriangles,stats,
+        emit:(v0,v1,v2,triangleCenterOffset)=>{
+          for(const v of [v0,v1,v2]){
+            const rr=info.radial(v.p,center),radius=Math.hypot(rr.u,rr.v);
+            let off=angleOffset(angleForPoint(v.p,center,axis),start,unwrapReverse);
+            while(off-triangleCenterOffset>Math.PI)off-=Math.PI*2;
+            while(triangleCenterOffset-off>Math.PI)off+=Math.PI*2;
+            const x=off*refRadius,y=info.axial(v.p)-axisMin,z=radius-refRadius;
+            minDepth=Math.min(minDepth,z);maxDepthValue=Math.max(maxDepthValue,z);
+            b.p.push(x,y,z);
+            if(v.uv)b.uv.push(v.uv.x,v.uv.y);
+            if(v.c)b.c.push(v.c.x,v.c.y,v.c.z);
+          }
+          kept++;
+        }
+      });
     }
     for(const [mi,b] of buckets){if(!b.p.length)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));if(b.uv.length)g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));if(b.c.length)g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));out.add(new THREE.Mesh(g,materialForUnwrap(mats[mi]||mats[0])))}
   }
-  if(!kept)return null;out.userData.unwrapWidth=span*refRadius;out.userData.unwrapHeight=Math.max(axisMax-axisMin,1e-6);out.userData.depthMin=minDepth;out.userData.depthMax=maxDepth;return out
+  if(!kept)return null;
+  out.userData.unwrapWidth=span*refRadius;
+  out.userData.unwrapHeight=Math.max(axisMax-axisMin,1e-6);
+  out.userData.depthMin=minDepth;
+  out.userData.depthMax=maxDepthValue;
+  out.userData.unwrapSourceTriangles=stats.sourceTriangles;
+  out.userData.unwrapTriangles=stats.triangles;
+  return out
 }
 async function renderUnwrappedGroup(group,outW,bandTop=0,bandBottom=1){
   const fullW=group.userData.unwrapWidth,fullH=group.userData.unwrapHeight,bt=Math.max(0,Math.min(.999,bandTop)),bb=Math.max(bt+.001,Math.min(1,bandBottom)),selH=fullH*(bb-bt),aspect=Math.max(fullW/selH,.01),outH=Math.max(500,Math.min(50000,Math.round(outW/aspect)));
