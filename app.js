@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.41';
+const VERSION='0.2.43';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -35,6 +35,8 @@ let camera=perspectiveCamera;
 function createOrbit(cam){
   const o=new OrbitControls(cam,renderer.domElement);
   o.enableDamping=true;o.dampingFactor=.08;o.screenSpacePanning=true;o.enablePan=true;
+  // Mouse navigation is handled globally so it stays identical in every tool.
+  o.mouseButtons={LEFT:-1,MIDDLE:-1,RIGHT:-1};
   o.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
   return o;
 }
@@ -87,13 +89,25 @@ let unwrapAreaMode=false,unwrapAreaPoints=[],unwrapBandTop=0,unwrapBandBottom=1,
 let cropCalculating=false,cropCancelRequested=false;
 let preparedImage=null;
 
+// ---------- Collapsible tool panel ----------
+const SIDEBAR_HIDDEN_KEY='archaeoplan-sidebar-hidden';
+const SIDEBAR_SECTIONS_KEY='archaeoplan-sidebar-sections-v1';
+let sidebarHidden=false;
+function loadSidebarSectionState(){try{return JSON.parse(localStorage.getItem(SIDEBAR_SECTIONS_KEY)||'{}')||{}}catch(_){return {}}}
+function saveSidebarSectionState(){const state={};document.querySelectorAll('.sidebar > section.collapsible-section').forEach((section,i)=>{const h=section.querySelector(':scope > h2');const key=h?.id||`section-${i}`;state[key]=section.classList.contains('section-collapsed')});localStorage.setItem(SIDEBAR_SECTIONS_KEY,JSON.stringify(state))}
+function updateSidebarToggleUi(){const b=$('sidebarToggleButton');if(!b)return;sidebarHidden=$('app')?.classList.contains('sidebar-hidden')||false;b.textContent=sidebarHidden?'☰':'◀';b.setAttribute('aria-expanded',String(!sidebarHidden));b.title=tr(sidebarHidden?'sidebarShow':'sidebarHide')}
+function refreshViewportAfterSidebarToggle(){requestAnimationFrame(()=>{const cx=(orthographicCamera.left+orthographicCamera.right)/2,cy=(orthographicCamera.top+orthographicCamera.bottom)/2,halfH=Math.max(1e-9,(orthographicCamera.top-orthographicCamera.bottom)/2);resize();if(camera.isOrthographicCamera){const aspect=viewportAspect();orthographicCamera.left=cx-halfH*aspect;orthographicCamera.right=cx+halfH*aspect;orthographicCamera.top=cy+halfH;orthographicCamera.bottom=cy-halfH;orthographicCamera.updateProjectionMatrix();orbit.update()}renderDrawingOverlay();updateExportFrame();updateExportAnnotations()})}
+function setSidebarHidden(hidden){sidebarHidden=!!hidden;$('app')?.classList.toggle('sidebar-hidden',sidebarHidden);localStorage.setItem(SIDEBAR_HIDDEN_KEY,sidebarHidden?'1':'0');updateSidebarToggleUi();refreshViewportAfterSidebarToggle()}
+function initSidebarUi(){const sidebar=document.querySelector('.sidebar');if(!sidebar)return;const state=loadSidebarSectionState();[...sidebar.children].filter(el=>el.tagName==='SECTION').forEach((section,i)=>{const h=section.querySelector(':scope > h2');if(!h)return;section.classList.add('collapsible-section');const key=h.id||`section-${i}`;if(state[key])section.classList.add('section-collapsed');h.setAttribute('role','button');h.setAttribute('tabindex','0');h.setAttribute('aria-expanded',String(!section.classList.contains('section-collapsed')));const toggle=()=>{section.classList.toggle('section-collapsed');h.setAttribute('aria-expanded',String(!section.classList.contains('section-collapsed')));saveSidebarSectionState()};h.addEventListener('click',toggle);h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}})});sidebarHidden=localStorage.getItem(SIDEBAR_HIDDEN_KEY)==='1';$('app')?.classList.toggle('sidebar-hidden',sidebarHidden);$('sidebarToggleButton').onclick=()=>setSidebarHidden(!sidebarHidden);updateSidebarToggleUi()}
+
 // ---------- 2D vector drawing sheet ----------
 let drawingActive=false,drawingTool='select',drawingObjects=[],drawingDraft=null,drawingSelectedId=null;
 let drawingSheetView=null,drawingPlanePoint=null,drawingPlaneNormal=null,drawingSheetSize={width:1,height:1};
-let drawingLayers=[{id:'layer-1',name:'Lag 1',visible:true}],drawingActiveLayerId='layer-1',drawingNextLayer=2,drawingNextObject=1;
+let drawingLayers=[{id:'layer-1',name:'Enhed 1',visible:true}],drawingActiveLayerId='layer-1',drawingNextLayer=2,drawingNextObject=1;
 let drawingPointerId=null,drawingDragStart=null,drawingDragOriginal=null,drawingLastClient=null;
 let drawingSelectedPointIndex=null,drawingDragMode=null,drawingPanLast=null;
 let drawingTouchPointers=new Map(),drawingPinch=null;
+let drawingVisible=true,drawingLastCameraSignature='';
 
 
 function setStatus(t){status.textContent=t}
@@ -103,7 +117,7 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
-  drawingSheet:'Tegneark', drawingHelp:'Et vektorlag bundet til en ortografisk visning. Start tegnearket, når planen eller profilen står rigtigt.', drawingStart:'Start tegneark', drawingClose:'Luk tegneark', drawingClear:'Ryd tegning', drawingSelect:'Vælg / flyt', drawingFreehand:'Frihånd', drawingLine:'Linje', drawingPolyline:'Polyline', drawingFinish:'Afslut polyline', drawingColor:'Farve', drawingWidth:'Tykkelse', drawingStyle:'Stregtype', drawingSolid:'Sammenhængende', drawingDashed:'Stiplet', drawingDashDot:'Streg-prik', drawingLongShort:'Lang-kort', drawingLayer:'Lag', drawingNewLayer:'Nyt lag', drawingDeleteLayer:'Slet lag', drawingShowLayer:'Vis lag', drawingIncludeExport:'Medtag tegning i billedeksport', drawingDeleteSelected:'Slet valgt', drawingExportSvg:'Eksportér SVG', drawingNone:'Intet tegneark oprettet.', drawingActiveStatus:'Tegneark aktivt – 3D-visningen er låst.', drawingClosedStatus:'Tegnearket er gemt. Åbn det igen for at fortsætte.', drawingCleared:'Tegningen er ryddet.', drawingLayerPrompt:'Navn på nyt lag:', drawingLayerDefault:'Lag', drawingDeleteLayerConfirm:'Slet dette lag og alle streger på laget?', drawingClearConfirm:'Ryd hele tegningen?', drawingNoObjects:'Der er ingen vektorer at eksportere.', drawingSvgExported:'SVG-tegning eksporteret.', drawingNeedOrtho:'Tegnearket bruger ortografisk visning.', drawingPan:'Panorér', drawingAddNode:'Tilføj knudepunkt', drawingRemoveNode:'Fjern knudepunkt', drawingZoomIn:'Zoom ind', drawingZoomOut:'Zoom ud', drawingZoomReset:'Nulstil zoom', drawingNodeRemoved:'Knudepunkt fjernet.', drawingNodeAdded:'Knudepunkt tilføjet.', drawingNodeMin:'En linje skal have mindst to knudepunkter.',
+  drawingSheet:'Tegneark', drawingHelp:'Et vektorlag bundet til en ortografisk visning. Start tegnearket, når planen eller profilen står rigtigt.', drawingStart:'Start tegneark', drawingClose:'Luk tegneark', drawingClear:'Ryd tegning', drawingSelect:'Vælg / flyt', drawingFreehand:'Frihånd', drawingLine:'Linje', drawingPolyline:'Polyline', drawingFinish:'Afslut polyline', drawingColor:'Farve', drawingWidth:'Tykkelse', drawingStyle:'Stregtype', drawingSolid:'Sammenhængende', drawingDashed:'Stiplet', drawingDashDot:'Streg-prik', drawingLongShort:'Lang-kort', drawingLayer:'Enhed', drawingNewLayer:'Ny enhed', drawingRenameLayer:'Omdøb enhed', drawingDeleteLayer:'Slet enhed', drawingShowLayer:'Vis enhed', drawingShowAll:'Vis tegning', drawingIncludeExport:'Medtag tegning i billedeksport', drawingDeleteSelected:'Slet valgt', drawingExportSvg:'Gem tegning (SVG)', drawingNone:'Intet tegneark oprettet.', drawingActiveStatus:'Tegneark aktivt – navigation er stadig tilgængelig.', drawingClosedStatus:'Tegnearket er gemt. Åbn det igen for at fortsætte.', drawingCleared:'Tegningen er ryddet.', drawingLayerPrompt:'Betegnelse for ny enhed (fx A34, L98 eller SU45):', drawingRenameLayerPrompt:'Ny betegnelse for enheden:', drawingLayerDefault:'Enhed', drawingDeleteLayerConfirm:'Slet denne enhed og alle streger knyttet til den?', drawingClearConfirm:'Ryd hele tegningen?', drawingNoObjects:'Der er ingen vektorer at eksportere.', drawingSvgExported:'SVG-tegning gemt.', drawingNeedOrtho:'Tegnearket bruger ortografisk visning.', drawingPan:'Panorér', drawingAddNode:'Tilføj knudepunkt', drawingRemoveNode:'Fjern knudepunkt', drawingZoomIn:'Zoom ind', drawingZoomOut:'Zoom ud', drawingZoomReset:'Nulstil zoom', drawingNodeRemoved:'Knudepunkt fjernet.', drawingNodeAdded:'Knudepunkt tilføjet.', drawingNodeMin:'En linje skal have mindst to knudepunkter.', sidebarHide:'Skjul værktøjspanel', sidebarShow:'Vis værktøjspanel',
 
   exportPurpose:'Formål', exportSize:'Størrelse', exportPurposeScreen:'Skærm / PowerPoint', exportPurposeBook:'Bog / artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Udstilling', exportPurposeCustom:'Brugerdefineret', exportSuitScreen:'Egnet til skærm og præsentation.', exportSuitBook:'Egnet til bog og artikel.', exportSuitPoster:'Egnet til plakattryk.', exportSuitExhibition:'Egnet til stor udstillingsgrafik.', exportSuitCustom:'Brugerdefineret eksport.', advancedExport:'Avanceret…', saveImage:'Gem billede', exportSafeNote:'Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.',
 
@@ -174,7 +188,7 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
-  drawingSheet:'Zeichenblatt', drawingHelp:'Eine Vektorebene, die an eine orthografische Ansicht gebunden ist. Starten Sie das Zeichenblatt, wenn Plan oder Profil korrekt ausgerichtet ist.', drawingStart:'Zeichenblatt starten', drawingClose:'Zeichenblatt schließen', drawingClear:'Zeichnung löschen', drawingSelect:'Auswählen / verschieben', drawingFreehand:'Freihand', drawingLine:'Linie', drawingPolyline:'Polylinie', drawingFinish:'Polylinie beenden', drawingColor:'Farbe', drawingWidth:'Stärke', drawingStyle:'Linientyp', drawingSolid:'Durchgezogen', drawingDashed:'Gestrichelt', drawingDashDot:'Strich-Punkt', drawingLongShort:'Lang-kurz', drawingLayer:'Ebene', drawingNewLayer:'Neue Ebene', drawingDeleteLayer:'Ebene löschen', drawingShowLayer:'Ebene anzeigen', drawingIncludeExport:'Zeichnung im Bildexport einschließen', drawingDeleteSelected:'Auswahl löschen', drawingExportSvg:'SVG exportieren', drawingNone:'Kein Zeichenblatt erstellt.', drawingActiveStatus:'Zeichenblatt aktiv – die 3D-Ansicht ist gesperrt.', drawingClosedStatus:'Das Zeichenblatt ist gespeichert. Öffnen Sie es erneut, um weiterzuarbeiten.', drawingCleared:'Zeichnung gelöscht.', drawingLayerPrompt:'Name der neuen Ebene:', drawingLayerDefault:'Ebene', drawingDeleteLayerConfirm:'Diese Ebene und alle Linien darauf löschen?', drawingClearConfirm:'Gesamte Zeichnung löschen?', drawingNoObjects:'Keine Vektoren zum Exportieren.', drawingSvgExported:'SVG-Zeichnung exportiert.', drawingNeedOrtho:'Das Zeichenblatt verwendet die orthografische Ansicht.', drawingPan:'Verschieben', drawingAddNode:'Knotenpunkt hinzufügen', drawingRemoveNode:'Knotenpunkt entfernen', drawingZoomIn:'Hineinzoomen', drawingZoomOut:'Herauszoomen', drawingZoomReset:'Zoom zurücksetzen', drawingNodeRemoved:'Knotenpunkt entfernt.', drawingNodeAdded:'Knotenpunkt hinzugefügt.', drawingNodeMin:'Eine Linie muss mindestens zwei Knotenpunkte haben.',
+  drawingSheet:'Zeichenblatt', drawingHelp:'Eine Vektorebene, die an eine orthografische Ansicht gebunden ist. Starten Sie das Zeichenblatt, wenn Plan oder Profil korrekt ausgerichtet ist.', drawingStart:'Zeichenblatt starten', drawingClose:'Zeichenblatt schließen', drawingClear:'Zeichnung löschen', drawingSelect:'Auswählen / verschieben', drawingFreehand:'Freihand', drawingLine:'Linie', drawingPolyline:'Polylinie', drawingFinish:'Polylinie beenden', drawingColor:'Farbe', drawingWidth:'Stärke', drawingStyle:'Linientyp', drawingSolid:'Durchgezogen', drawingDashed:'Gestrichelt', drawingDashDot:'Strich-Punkt', drawingLongShort:'Lang-kurz', drawingLayer:'Einheit', drawingNewLayer:'Neue Einheit', drawingRenameLayer:'Einheit umbenennen', drawingDeleteLayer:'Einheit löschen', drawingShowLayer:'Einheit anzeigen', drawingShowAll:'Zeichnung anzeigen', drawingIncludeExport:'Zeichnung im Bildexport einschließen', drawingDeleteSelected:'Auswahl löschen', drawingExportSvg:'Zeichnung speichern (SVG)', drawingNone:'Kein Zeichenblatt erstellt.', drawingActiveStatus:'Zeichenblatt aktiv – Navigation bleibt verfügbar.', drawingClosedStatus:'Das Zeichenblatt ist gespeichert. Öffnen Sie es erneut, um weiterzuarbeiten.', drawingCleared:'Zeichnung gelöscht.', drawingLayerPrompt:'Bezeichnung der neuen Einheit (z. B. A34, L98 oder SU45):', drawingRenameLayerPrompt:'Neue Bezeichnung der Einheit:', drawingLayerDefault:'Einheit', drawingDeleteLayerConfirm:'Diese Einheit und alle zugehörigen Linien löschen?', drawingClearConfirm:'Gesamte Zeichnung löschen?', drawingNoObjects:'Keine Vektoren zum Exportieren.', drawingSvgExported:'SVG-Zeichnung gespeichert.', drawingNeedOrtho:'Das Zeichenblatt verwendet die orthografische Ansicht.', drawingPan:'Verschieben', drawingAddNode:'Knotenpunkt hinzufügen', drawingRemoveNode:'Knotenpunkt entfernen', drawingZoomIn:'Hineinzoomen', drawingZoomOut:'Herauszoomen', drawingZoomReset:'Zoom zurücksetzen', drawingNodeRemoved:'Knotenpunkt entfernt.', drawingNodeAdded:'Knotenpunkt hinzugefügt.', drawingNodeMin:'Eine Linie muss mindestens zwei Knotenpunkte haben.', sidebarHide:'Werkzeugleiste ausblenden', sidebarShow:'Werkzeugleiste anzeigen',
 
   exportPurpose:'Zweck', exportSize:'Größe', exportPurposeScreen:'Bildschirm / PowerPoint', exportPurposeBook:'Buch / Artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Ausstellung', exportPurposeCustom:'Benutzerdefiniert', exportSuitScreen:'Geeignet für Bildschirm und Präsentation.', exportSuitBook:'Geeignet für Buch und Artikel.', exportSuitPoster:'Geeignet für Plakatdruck.', exportSuitExhibition:'Geeignet für große Ausstellungsgrafik.', exportSuitCustom:'Benutzerdefinierter Export.', advancedExport:'Erweitert…', saveImage:'Bild speichern', exportSafeNote:'Große Bilder werden automatisch an die sichere Gerätegrenze angepasst. Originaltexturen bleiben erhalten.',
 
@@ -242,7 +256,7 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
-  drawingSheet:'Drawing sheet', drawingHelp:'A vector layer tied to an orthographic view. Start the sheet when the plan or section is aligned correctly.', drawingStart:'Start drawing sheet', drawingClose:'Close drawing sheet', drawingClear:'Clear drawing', drawingSelect:'Select / move', drawingFreehand:'Freehand', drawingLine:'Line', drawingPolyline:'Polyline', drawingFinish:'Finish polyline', drawingColor:'Colour', drawingWidth:'Width', drawingStyle:'Line type', drawingSolid:'Solid', drawingDashed:'Dashed', drawingDashDot:'Dash-dot', drawingLongShort:'Long-short', drawingLayer:'Layer', drawingNewLayer:'New layer', drawingDeleteLayer:'Delete layer', drawingShowLayer:'Show layer', drawingIncludeExport:'Include drawing in image export', drawingDeleteSelected:'Delete selected', drawingExportSvg:'Export SVG', drawingNone:'No drawing sheet created.', drawingActiveStatus:'Drawing sheet active – the 3D view is locked.', drawingClosedStatus:'The drawing sheet is saved. Open it again to continue.', drawingCleared:'Drawing cleared.', drawingLayerPrompt:'Name of new layer:', drawingLayerDefault:'Layer', drawingDeleteLayerConfirm:'Delete this layer and all lines on it?', drawingClearConfirm:'Clear the entire drawing?', drawingNoObjects:'There are no vectors to export.', drawingSvgExported:'SVG drawing exported.', drawingNeedOrtho:'The drawing sheet uses orthographic view.', drawingPan:'Pan', drawingAddNode:'Add node', drawingRemoveNode:'Remove node', drawingZoomIn:'Zoom in', drawingZoomOut:'Zoom out', drawingZoomReset:'Reset zoom', drawingNodeRemoved:'Node removed.', drawingNodeAdded:'Node added.', drawingNodeMin:'A line must have at least two nodes.',
+  drawingSheet:'Drawing sheet', drawingHelp:'A vector layer tied to an orthographic view. Start the sheet when the plan or section is aligned correctly.', drawingStart:'Start drawing sheet', drawingClose:'Close drawing sheet', drawingClear:'Clear drawing', drawingSelect:'Select / move', drawingFreehand:'Freehand', drawingLine:'Line', drawingPolyline:'Polyline', drawingFinish:'Finish polyline', drawingColor:'Colour', drawingWidth:'Width', drawingStyle:'Line type', drawingSolid:'Solid', drawingDashed:'Dashed', drawingDashDot:'Dash-dot', drawingLongShort:'Long-short', drawingLayer:'Unit', drawingNewLayer:'New unit', drawingRenameLayer:'Rename unit', drawingDeleteLayer:'Delete unit', drawingShowLayer:'Show unit', drawingShowAll:'Show drawing', drawingIncludeExport:'Include drawing in image export', drawingDeleteSelected:'Delete selected', drawingExportSvg:'Save drawing (SVG)', drawingNone:'No drawing sheet created.', drawingActiveStatus:'Drawing sheet active – navigation remains available.', drawingClosedStatus:'The drawing sheet is saved. Open it again to continue.', drawingCleared:'Drawing cleared.', drawingLayerPrompt:'Identifier for new unit (e.g. A34, L98 or SU45):', drawingRenameLayerPrompt:'New identifier for the unit:', drawingLayerDefault:'Unit', drawingDeleteLayerConfirm:'Delete this unit and all lines linked to it?', drawingClearConfirm:'Clear the entire drawing?', drawingNoObjects:'There are no vectors to export.', drawingSvgExported:'SVG drawing saved.', drawingNeedOrtho:'The drawing sheet uses orthographic view.', drawingPan:'Pan', drawingAddNode:'Add node', drawingRemoveNode:'Remove node', drawingZoomIn:'Zoom in', drawingZoomOut:'Zoom out', drawingZoomReset:'Reset zoom', drawingNodeRemoved:'Node removed.', drawingNodeAdded:'Node added.', drawingNodeMin:'A line must have at least two nodes.', sidebarHide:'Hide tool panel', sidebarShow:'Show tool panel',
 
   exportPurpose:'Purpose', exportSize:'Size', exportPurposeScreen:'Screen / PowerPoint', exportPurposeBook:'Book / article', exportPurposePoster:'Poster', exportPurposeExhibition:'Exhibition', exportPurposeCustom:'Custom', exportSuitScreen:'Suitable for screen and presentation.', exportSuitBook:'Suitable for book and article.', exportSuitPoster:'Suitable for poster printing.', exportSuitExhibition:'Suitable for large exhibition graphics.', exportSuitCustom:'Custom export.', advancedExport:'Advanced…', saveImage:'Save image', exportSafeNote:'Large images are automatically adjusted to the device-safe limit. Original textures are preserved.',
 
@@ -310,7 +324,7 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
-  drawingSheet:'Feuille de dessin', drawingHelp:'Un calque vectoriel lié à une vue orthographique. Démarrez la feuille lorsque le plan ou la coupe est correctement orienté.', drawingStart:'Démarrer la feuille', drawingClose:'Fermer la feuille', drawingClear:'Effacer le dessin', drawingSelect:'Sélectionner / déplacer', drawingFreehand:'Main levée', drawingLine:'Ligne', drawingPolyline:'Polyligne', drawingFinish:'Terminer la polyligne', drawingColor:'Couleur', drawingWidth:'Épaisseur', drawingStyle:'Type de ligne', drawingSolid:'Continue', drawingDashed:'Tiretée', drawingDashDot:'Tiret-point', drawingLongShort:'Long-court', drawingLayer:'Calque', drawingNewLayer:'Nouveau calque', drawingDeleteLayer:'Supprimer le calque', drawingShowLayer:'Afficher le calque', drawingIncludeExport:'Inclure le dessin dans l’export image', drawingDeleteSelected:'Supprimer la sélection', drawingExportSvg:'Exporter SVG', drawingNone:'Aucune feuille de dessin créée.', drawingActiveStatus:'Feuille active – la vue 3D est verrouillée.', drawingClosedStatus:'La feuille est enregistrée. Ouvrez-la à nouveau pour continuer.', drawingCleared:'Dessin effacé.', drawingLayerPrompt:'Nom du nouveau calque :', drawingLayerDefault:'Calque', drawingDeleteLayerConfirm:'Supprimer ce calque et tous ses traits ?', drawingClearConfirm:'Effacer tout le dessin ?', drawingNoObjects:'Aucun vecteur à exporter.', drawingSvgExported:'Dessin SVG exporté.', drawingNeedOrtho:'La feuille utilise la vue orthographique.', drawingPan:'Panoramique', drawingAddNode:'Ajouter un nœud', drawingRemoveNode:'Supprimer un nœud', drawingZoomIn:'Zoom avant', drawingZoomOut:'Zoom arrière', drawingZoomReset:'Réinitialiser le zoom', drawingNodeRemoved:'Nœud supprimé.', drawingNodeAdded:'Nœud ajouté.', drawingNodeMin:'Une ligne doit comporter au moins deux nœuds.',
+  drawingSheet:'Feuille de dessin', drawingHelp:'Un calque vectoriel lié à une vue orthographique. Démarrez la feuille lorsque le plan ou la coupe est correctement orienté.', drawingStart:'Démarrer la feuille', drawingClose:'Fermer la feuille', drawingClear:'Effacer le dessin', drawingSelect:'Sélectionner / déplacer', drawingFreehand:'Main levée', drawingLine:'Ligne', drawingPolyline:'Polyligne', drawingFinish:'Terminer la polyligne', drawingColor:'Couleur', drawingWidth:'Épaisseur', drawingStyle:'Type de ligne', drawingSolid:'Continue', drawingDashed:'Tiretée', drawingDashDot:'Tiret-point', drawingLongShort:'Long-court', drawingLayer:'Unité', drawingNewLayer:'Nouvelle unité', drawingRenameLayer:'Renommer l’unité', drawingDeleteLayer:'Supprimer l’unité', drawingShowLayer:'Afficher l’unité', drawingShowAll:'Afficher le dessin', drawingIncludeExport:'Inclure le dessin dans l’export image', drawingDeleteSelected:'Supprimer la sélection', drawingExportSvg:'Enregistrer le dessin (SVG)', drawingNone:'Aucune feuille de dessin créée.', drawingActiveStatus:'Feuille active – la navigation reste disponible.', drawingClosedStatus:'La feuille est enregistrée. Ouvrez-la à nouveau pour continuer.', drawingCleared:'Dessin effacé.', drawingLayerPrompt:'Identifiant de la nouvelle unité (p. ex. A34, L98 ou SU45) :', drawingRenameLayerPrompt:'Nouvel identifiant de l’unité :', drawingLayerDefault:'Unité', drawingDeleteLayerConfirm:'Supprimer cette unité et tous les traits qui lui sont liés ?', drawingClearConfirm:'Effacer tout le dessin ?', drawingNoObjects:'Aucun vecteur à exporter.', drawingSvgExported:'Dessin SVG enregistré.', drawingNeedOrtho:'La feuille utilise la vue orthographique.', drawingPan:'Panoramique', drawingAddNode:'Ajouter un nœud', drawingRemoveNode:'Supprimer un nœud', drawingZoomIn:'Zoom avant', drawingZoomOut:'Zoom arrière', drawingZoomReset:'Réinitialiser le zoom', drawingNodeRemoved:'Nœud supprimé.', drawingNodeAdded:'Nœud ajouté.', drawingNodeMin:'Une ligne doit comporter au moins deux nœuds.', sidebarHide:'Masquer le panneau d’outils', sidebarShow:'Afficher le panneau d’outils',
 
   exportPurpose:'Usage', exportSize:'Taille', exportPurposeScreen:'Écran / PowerPoint', exportPurposeBook:'Livre / article', exportPurposePoster:'Affiche', exportPurposeExhibition:'Exposition', exportPurposeCustom:'Personnalisé', exportSuitScreen:'Adapté à l’écran et aux présentations.', exportSuitBook:'Adapté aux livres et articles.', exportSuitPoster:'Adapté à l’impression d’affiches.', exportSuitExhibition:'Adapté aux grands visuels d’exposition.', exportSuitCustom:'Export personnalisé.', advancedExport:'Avancé…', saveImage:'Enregistrer l’image', exportSafeNote:'Les grandes images sont automatiquement adaptées à la limite sûre de l’appareil. Les textures originales sont conservées.',
 
@@ -440,9 +454,10 @@ function applyLanguage(lang){
   setText('drawingSelectButton','drawingSelect');setText('drawingPanButton','drawingPan');setText('drawingFreehandButton','drawingFreehand');setText('drawingLineButton','drawingLine');setText('drawingPolylineButton','drawingPolyline');setText('drawingAddNodeButton','drawingAddNode');setText('drawingRemoveNodeButton','drawingRemoveNode');setText('drawingFinishPolylineButton','drawingFinish');
   $('drawingZoomOutButton').title=tr('drawingZoomOut');$('drawingZoomInButton').title=tr('drawingZoomIn');$('drawingZoomResetButton').title=tr('drawingZoomReset');
   setText('drawingColorLabel','drawingColor');setText('drawingWidthLabel','drawingWidth');setText('drawingStyleLabel','drawingStyle');setText('drawingLayerLabel','drawingLayer');
-  setText('drawingShowLayerText','drawingShowLayer');setText('drawingIncludeExportText','drawingIncludeExport');setText('drawingDeleteSelectedButton','drawingDeleteSelected');setText('drawingExportSvgButton','drawingExportSvg');
+  setText('drawingShowLayerText','drawingShowLayer');setText('drawingShowAllText','drawingShowAll');setText('drawingIncludeExportText','drawingIncludeExport');setText('drawingDeleteSelectedButton','drawingDeleteSelected');setText('drawingExportSvgButton','drawingExportSvg');
   setOption('drawingStyle','solid','drawingSolid');setOption('drawingStyle','dashed','drawingDashed');setOption('drawingStyle','dashdot','drawingDashDot');setOption('drawingStyle','longshort','drawingLongShort');
-  $('drawingNewLayerButton').title=tr('drawingNewLayer');$('drawingDeleteLayerButton').title=tr('drawingDeleteLayer');
+  $('drawingNewLayerButton').title=tr('drawingNewLayer');$('drawingRenameLayerButton').title=tr('drawingRenameLayer');$('drawingDeleteLayerButton').title=tr('drawingDeleteLayer');
+  updateSidebarToggleUi();
   updateDrawingUi();
 
   setText('exportHeading','exportFrame');
@@ -1790,19 +1805,22 @@ function renderDrawingOverlay(){
   const overlay=$('drawingOverlay');if(!overlay)return;
   const r=renderer.domElement.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);
   overlay.setAttribute('viewBox',`0 0 ${w} ${h}`);
-  overlay.classList.toggle('visible',drawingActive);
+  const persistentVisible=!!(drawingVisible&&drawingSheetView&&drawingObjects.length);
+  overlay.classList.toggle('visible',drawingActive||persistentVisible);
   overlay.classList.toggle('active',drawingActive);
   overlay.classList.toggle('select-tool',drawingTool==='select');
   overlay.classList.toggle('pan-tool',drawingTool==='pan');
   overlay.classList.toggle('add-node-tool',drawingTool==='addnode');
   overlay.classList.toggle('remove-node-tool',drawingTool==='removenode');
   const objects=$('drawingObjects'),preview=$('drawingPreview'),selection=$('drawingSelection');objects.innerHTML='';preview.innerHTML='';selection.innerHTML='';
-  if(!drawingActive){updateDrawingZoomUi();return}
-  for(const obj of drawingObjects){
-    const layer=drawingLayer(obj.layerId);if(layer&&layer.visible!==false)drawingSvgPath(obj,objects,obj.id===drawingSelectedId);
+  if(!(drawingActive||persistentVisible)){updateDrawingZoomUi();return}
+  if(drawingVisible){
+    for(const obj of drawingObjects){
+      const layer=drawingLayer(obj.layerId);if(layer&&layer.visible!==false)drawingSvgPath(obj,objects,drawingActive&&obj.id===drawingSelectedId);
+    }
+    if(drawingActive&&drawingDraft)drawingSvgPath(drawingDraft,preview,false);
   }
-  if(drawingDraft)drawingSvgPath(drawingDraft,preview,false);
-  const sel=drawingObjects.find(o=>o.id===drawingSelectedId);if(sel&&drawingLayer(sel.layerId)?.visible!==false&&['select','addnode','removenode'].includes(drawingTool)){
+  const sel=drawingActive&&drawingVisible?drawingObjects.find(o=>o.id===drawingSelectedId):null;if(sel&&drawingLayer(sel.layerId)?.visible!==false&&['select','addnode','removenode'].includes(drawingTool)){
     const ns='http://www.w3.org/2000/svg';
     for(let i=0;i<sel.points.length;i++){
       const q=drawingScreenPoint(sel.points[i]),c=document.createElementNS(ns,'circle');
@@ -1821,6 +1839,7 @@ function updateDrawingUi(){
   $('drawingFinishPolylineButton').disabled=!(drawingDraft?.type==='polyline'&&drawingDraft.points.length>=2);
   $('drawingDeleteSelectedButton').disabled=!drawingSelectedId;
   const status=$('drawingStatus');if(status)status.textContent=drawingActive?tr('drawingActiveStatus'):(drawingSheetView?tr('drawingClosedStatus'):tr('drawingNone'));
+  if($('drawingVisible'))$('drawingVisible').checked=drawingVisible;
   rebuildDrawingLayers();renderDrawingOverlay();updateDrawingZoomUi();
 }
 function setDrawingInteractionLock(on){
@@ -1833,7 +1852,7 @@ function applyDrawingCameraView(s){
   if(!s)return;
   if(!camera.isOrthographicCamera)switchCamera(true);
   camera.position.fromArray(s.position);camera.quaternion.fromArray(s.quaternion);camera.up.fromArray(s.up);orbit.target.fromArray(s.target);camera.zoom=s.zoom||1;
-  if(s.orthoBounds){camera.left=s.orthoBounds.left;camera.right=s.orthoBounds.right;camera.top=s.orthoBounds.top;camera.bottom=s.orthoBounds.bottom}
+  if(s.orthoBounds){camera.left=s.orthoBounds.left;camera.right=s.orthoBounds.right;camera.top=s.orthoBounds.top;camera.bottom=s.orthoBounds.bottom;const cx=(camera.left+camera.right)/2,cy=(camera.top+camera.bottom)/2,halfH=(camera.top-camera.bottom)/2,aspect=viewportAspect();camera.left=cx-halfH*aspect;camera.right=cx+halfH*aspect;camera.top=cy+halfH;camera.bottom=cy-halfH}
   camera.near=s.near??camera.near;camera.far=s.far??camera.far;camera.updateProjectionMatrix();orbit.update();
 }
 function startDrawingSheet(){
@@ -1846,7 +1865,7 @@ function startDrawingSheet(){
     drawingSheetSize={width:Math.max(1,renderer.domElement.getBoundingClientRect().width),height:Math.max(1,renderer.domElement.getBoundingClientRect().height)};
     const n=orbit.target.clone().sub(camera.position).normalize();drawingPlaneNormal=n.toArray();drawingPlanePoint=orbit.target.toArray();
   }else applyDrawingCameraView(drawingSheetView);
-  drawingActive=true;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDraft=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;setDrawingInteractionLock(true);updateDrawingUi();setStatus(tr('drawingActiveStatus'));
+  drawingActive=true;drawingVisible=true;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDraft=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;setDrawingInteractionLock(true);updateDrawingUi();setStatus(tr('drawingActiveStatus'));
 }
 function stopDrawingSheet(){
   if(!drawingActive)return;finishDrawingPolyline(false);drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;
@@ -1895,6 +1914,10 @@ function removeDrawingNodeAtEvent(e){
 }
 function drawingPointerDown(e){
   if(!drawingActive)return;e.preventDefault();e.stopPropagation();
+  if(e.pointerType==='mouse'&&e.button===1){
+    const world=drawingWorldPointFromEvent(e);if(!world)return;drawingPointerId=e.pointerId;try{$('drawingOverlay').setPointerCapture?.(e.pointerId)}catch(_){ }drawingDragMode='pan-middle';drawingPanLast=world.clone();return;
+  }
+  if(e.pointerType==='mouse'&&e.button!==0)return;
   if(e.pointerType==='touch'){
     drawingTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
     try{$('drawingOverlay').setPointerCapture?.(e.pointerId)}catch(_){ }
@@ -1923,7 +1946,7 @@ function drawingPointerMove(e){
     if(drawingPinch||drawingTouchPointers.size>=2){e.preventDefault();if(!drawingPinch)beginDrawingPinch();updateDrawingPinch();return}
   }
   if(drawingPinch||e.pointerId!==drawingPointerId)return;e.preventDefault();const world=drawingWorldPointFromEvent(e);if(!world)return;
-  if(drawingDragMode==='pan'&&drawingPanLast){const d=drawingPanLast.clone().sub(world);camera.position.add(d);orbit.target.add(d);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();return}
+  if((drawingDragMode==='pan'||drawingDragMode==='pan-middle')&&drawingPanLast){const d=drawingPanLast.clone().sub(world);camera.position.add(d);orbit.target.add(d);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();return}
   if(drawingTool==='select'&&drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId);if(!o)return;
     if(drawingDragMode==='node'&&Number.isInteger(drawingSelectedPointIndex)){o.points=drawingClonePoints(drawingDragOriginal);o.points[drawingSelectedPointIndex]={x:world.x,y:world.y,z:world.z};renderDrawingOverlay();return}
     if(drawingDragMode==='object'&&drawingDragStart){const d=world.clone().sub(drawingDragStart);o.points=drawingDragOriginal.map(p=>({x:p.x+d.x,y:p.y+d.y,z:p.z+d.z}));renderDrawingOverlay();return}
@@ -1941,7 +1964,7 @@ function drawingPointerUp(e){
     if(drawingPinch){e.preventDefault();if(drawingTouchPointers.size<2)drawingPinch=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;renderDrawingOverlay();return}
   }
   if(e.pointerId!==drawingPointerId)return;e.preventDefault();try{$('drawingOverlay').releasePointerCapture?.(e.pointerId)}catch(_){ }drawingPointerId=null;
-  if(drawingDragMode==='pan'){drawingDragMode=null;drawingPanLast=null;return}
+  if(drawingDragMode==='pan'||drawingDragMode==='pan-middle'){drawingDragMode=null;drawingPanLast=null;return}
   if(drawingTool==='select'){
     if(drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId),before=drawingClonePoints(drawingDragOriginal),after=drawingClonePoints(o?.points);if(o&&JSON.stringify(before)!==JSON.stringify(after)){const id=o.id,label=drawingDragMode==='node'?'flyt knudepunkt':'flyt vektor';pushHistory({label,undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);renderDrawingOverlay()}})}}drawingDragStart=null;drawingDragOriginal=null;drawingDragMode=null;return;
   }
@@ -1958,18 +1981,21 @@ function clearDrawing(){
   if(before.length)pushHistory({label:'ryd tegning',undo:()=>{drawingObjects=before.map(drawingObjectClone);drawingSheetView=view;drawingPlanePoint=pp;drawingPlaneNormal=pn;drawingSheetSize=size;renderDrawingOverlay();updateDrawingUi()},redo:()=>{drawingObjects=[];drawingSelectedId=null;renderDrawingOverlay();updateDrawingUi()}});renderDrawingOverlay();setStatus(tr('drawingCleared'));updateDrawingUi();
 }
 function rebuildDrawingLayers(){
-  const select=$('drawingLayerSelect');if(!select)return;const old=drawingActiveLayerId;select.innerHTML='';for(const l of drawingLayers){const o=document.createElement('option');o.value=l.id;o.textContent=l.name;select.appendChild(o)}if(drawingLayer(old))drawingActiveLayerId=old;else drawingActiveLayerId=drawingLayers[0]?.id||null;if(drawingActiveLayerId)select.value=drawingActiveLayerId;const layer=drawingLayer(drawingActiveLayerId);$('drawingLayerVisible').checked=layer?.visible!==false;$('drawingDeleteLayerButton').disabled=drawingLayers.length<=1;
+  const select=$('drawingLayerSelect');if(!select)return;const old=drawingActiveLayerId;select.innerHTML='';for(const l of drawingLayers){const o=document.createElement('option');o.value=l.id;o.textContent=l.name;select.appendChild(o)}if(drawingLayer(old))drawingActiveLayerId=old;else drawingActiveLayerId=drawingLayers[0]?.id||null;if(drawingActiveLayerId)select.value=drawingActiveLayerId;const layer=drawingLayer(drawingActiveLayerId);$('drawingLayerVisible').checked=layer?.visible!==false;$('drawingRenameLayerButton').disabled=!layer;$('drawingDeleteLayerButton').disabled=drawingLayers.length<=1;
 }
 function newDrawingLayer(){const name=prompt(tr('drawingLayerPrompt'),`${tr('drawingLayerDefault')} ${drawingNextLayer}`);if(name===null)return;const l={id:`layer-${drawingNextLayer++}`,name:name.trim()||`${tr('drawingLayerDefault')} ${drawingNextLayer-1}`,visible:true};drawingLayers.push(l);drawingActiveLayerId=l.id;rebuildDrawingLayers();renderDrawingOverlay()}
+function renameDrawingLayer(){
+  const layer=drawingLayer(drawingActiveLayerId);if(!layer)return;const before=layer.name;const requested=prompt(tr('drawingRenameLayerPrompt'),before);if(requested===null)return;const after=requested.trim();if(!after||after===before)return;const id=layer.id;layer.name=after;pushHistory({label:'omdøb enhed',undo:()=>{const l=drawingLayer(id);if(l){l.name=before;rebuildDrawingLayers();renderDrawingOverlay()}},redo:()=>{const l=drawingLayer(id);if(l){l.name=after;rebuildDrawingLayers();renderDrawingOverlay()}}});rebuildDrawingLayers();renderDrawingOverlay();
+}
 function deleteDrawingLayer(){
-  if(drawingLayers.length<=1)return;const id=drawingActiveLayerId;if(!confirm(tr('drawingDeleteLayerConfirm')))return;const li=drawingLayers.findIndex(l=>l.id===id),layer={...drawingLayers[li]},removed=drawingObjects.filter(o=>o.layerId===id).map(drawingObjectClone);drawingLayers.splice(li,1);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[Math.max(0,li-1)].id;drawingSelectedId=null;drawingSelectedPointIndex=null;pushHistory({label:'slet tegnelag',undo:()=>{drawingLayers.splice(Math.min(li,drawingLayers.length),0,{...layer});drawingObjects.push(...removed.map(drawingObjectClone));drawingActiveLayerId=layer.id;rebuildDrawingLayers();renderDrawingOverlay()},redo:()=>{drawingLayers=drawingLayers.filter(l=>l.id!==id);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[0]?.id||null;rebuildDrawingLayers();renderDrawingOverlay()}});rebuildDrawingLayers();renderDrawingOverlay();
+  if(drawingLayers.length<=1)return;const id=drawingActiveLayerId;if(!confirm(tr('drawingDeleteLayerConfirm')))return;const li=drawingLayers.findIndex(l=>l.id===id),layer={...drawingLayers[li]},removed=drawingObjects.filter(o=>o.layerId===id).map(drawingObjectClone);drawingLayers.splice(li,1);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[Math.max(0,li-1)].id;drawingSelectedId=null;drawingSelectedPointIndex=null;pushHistory({label:'slet enhed',undo:()=>{drawingLayers.splice(Math.min(li,drawingLayers.length),0,{...layer});drawingObjects.push(...removed.map(drawingObjectClone));drawingActiveLayerId=layer.id;rebuildDrawingLayers();renderDrawingOverlay()},redo:()=>{drawingLayers=drawingLayers.filter(l=>l.id!==id);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[0]?.id||null;rebuildDrawingLayers();renderDrawingOverlay()}});rebuildDrawingLayers();renderDrawingOverlay();
 }
 function setDrawingLayerVisibility(v){const l=drawingLayer(drawingActiveLayerId);if(l){l.visible=!!v;if(!l.visible&&drawingObjects.find(o=>o.id===drawingSelectedId)?.layerId===l.id){drawingSelectedId=null;drawingSelectedPointIndex=null;}renderDrawingOverlay()}}
-function drawingProjectData(){return{sheetView:drawingSheetView?JSON.parse(JSON.stringify(drawingSheetView)):null,planePoint:drawingPlanePoint?[...drawingPlanePoint]:null,planeNormal:drawingPlaneNormal?[...drawingPlaneNormal]:null,sheetSize:{...drawingSheetSize},objects:drawingObjects.map(drawingObjectClone),layers:drawingLayers.map(l=>({...l})),activeLayerId:drawingActiveLayerId,nextLayer:drawingNextLayer,nextObject:drawingNextObject,includeExport:$('drawingIncludeExport')?.checked!==false}}
+function drawingProjectData(){return{sheetView:drawingSheetView?JSON.parse(JSON.stringify(drawingSheetView)):null,planePoint:drawingPlanePoint?[...drawingPlanePoint]:null,planeNormal:drawingPlaneNormal?[...drawingPlaneNormal]:null,sheetSize:{...drawingSheetSize},objects:drawingObjects.map(drawingObjectClone),layers:drawingLayers.map(l=>({...l})),activeLayerId:drawingActiveLayerId,nextLayer:drawingNextLayer,nextObject:drawingNextObject,visible:drawingVisible,includeExport:$('drawingIncludeExport')?.checked!==false}}
 function restoreDrawingProjectData(d){
-  drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;drawingSheetView=d?.sheetView||null;drawingPlanePoint=d?.planePoint||null;drawingPlaneNormal=d?.planeNormal||null;drawingSheetSize=d?.sheetSize||{width:1,height:1};drawingObjects=Array.isArray(d?.objects)?d.objects.map(drawingObjectClone):[];drawingLayers=Array.isArray(d?.layers)&&d.layers.length?d.layers.map(l=>({...l})):[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId=drawingLayer(d?.activeLayerId)?.id||drawingLayers[0].id;drawingNextLayer=d?.nextLayer||drawingLayers.length+1;drawingNextObject=d?.nextObject||drawingObjects.length+1;if($('drawingIncludeExport'))$('drawingIncludeExport').checked=d?.includeExport!==false;setDrawingInteractionLock(false);updateDrawingUi();
+  drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;drawingSheetView=d?.sheetView||null;drawingPlanePoint=d?.planePoint||null;drawingPlaneNormal=d?.planeNormal||null;drawingSheetSize=d?.sheetSize||{width:1,height:1};drawingObjects=Array.isArray(d?.objects)?d.objects.map(drawingObjectClone):[];drawingLayers=Array.isArray(d?.layers)&&d.layers.length?d.layers.map(l=>({...l})):[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId=drawingLayer(d?.activeLayerId)?.id||drawingLayers[0].id;drawingNextLayer=d?.nextLayer||drawingLayers.length+1;drawingNextObject=d?.nextObject||drawingObjects.length+1;drawingVisible=d?.visible!==false;if($('drawingVisible'))$('drawingVisible').checked=drawingVisible;if($('drawingIncludeExport'))$('drawingIncludeExport').checked=d?.includeExport!==false;setDrawingInteractionLock(false);updateDrawingUi();
 }
-function resetDrawingProject(){drawingActive=false;drawingTool='select';drawingObjects=[];drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=null;drawingPlanePoint=null;drawingPlaneNormal=null;drawingSheetSize={width:1,height:1};drawingLayers=[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId='layer-1';drawingNextLayer=2;drawingNextObject=1;drawingPointerId=null;drawingTouchPointers.clear();drawingPinch=null;orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);updateDrawingUi()}
+function resetDrawingProject(){drawingActive=false;drawingTool='select';drawingObjects=[];drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=null;drawingPlanePoint=null;drawingPlaneNormal=null;drawingSheetSize={width:1,height:1};drawingLayers=[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true}];drawingActiveLayerId='layer-1';drawingNextLayer=2;drawingNextObject=1;drawingPointerId=null;drawingTouchPointers.clear();drawingPinch=null;drawingVisible=true;if($('drawingVisible'))$('drawingVisible').checked=true;orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);updateDrawingUi()}
 function drawingCameraForSvg(){
   if(!drawingSheetView?.orthoBounds)return null;const b=drawingSheetView.orthoBounds,c=new THREE.OrthographicCamera(b.left,b.right,b.top,b.bottom,drawingSheetView.near??-1e7,drawingSheetView.far??1e7);c.position.fromArray(drawingSheetView.position);c.quaternion.fromArray(drawingSheetView.quaternion);c.up.fromArray(drawingSheetView.up);c.zoom=drawingSheetView.zoom||1;c.updateProjectionMatrix();c.updateMatrixWorld(true);return c;
 }
@@ -1977,11 +2003,85 @@ function drawingSvgString(){
   if(!drawingObjects.length)return null;const cam=drawingCameraForSvg();if(!cam)return null;const W=Math.max(1,Math.round(drawingSheetSize.width||1000)),H=Math.max(1,Math.round(drawingSheetSize.height||1000));const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');let body='';for(const l of drawingLayers){if(l.visible===false)continue;const paths=drawingObjects.filter(o=>o.layerId===l.id);if(!paths.length)continue;body+=`<g id="${esc(l.id)}" data-layer="${esc(l.name)}">`;for(const o of paths){const d=drawingPathData(o.points,cam,W,H),dash=drawingDashArray(o.style,o.width);body+=`<path d="${d}" fill="none" stroke="${esc(o.stroke)}" stroke-width="${o.width}" stroke-linecap="round" stroke-linejoin="round"${dash?` stroke-dasharray="${dash}"`:''}/>`}body+='</g>'}return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
 }
 async function exportDrawingSvg(){
-  const svg=drawingSvgString();if(!svg){setStatus(tr('drawingNoObjects'));return}const blob=new Blob([svg],{type:'image/svg+xml'}),filename=`ArchaeoPlan-tegning-${new Date().toISOString().slice(0,10)}.svg`,file=new File([blob],filename,{type:'image/svg+xml'});try{if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:'ArchaeoPlan SVG'});setStatus(tr('drawingSvgExported'));return}}catch(err){if(err?.name==='AbortError')return}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setStatus(tr('drawingSvgExported'));
+  const svg=drawingSvgString();if(!svg){setStatus(tr('drawingNoObjects'));return}
+  const blob=new Blob([svg],{type:'image/svg+xml'}),filename=`ArchaeoPlan-tegning-${new Date().toISOString().slice(0,10)}.svg`;
+  try{
+    if(window.showSaveFilePicker){
+      const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'SVG vector drawing',accept:{'image/svg+xml':['.svg']}}]});
+      const writable=await handle.createWritable();await writable.write(blob);await writable.close();setStatus(tr('drawingSvgExported'));return;
+    }
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setStatus(tr('drawingSvgExported'));
+  }catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||String(err))}
 }
 function drawDrawingOnCanvas(ctx,outW,outH){
   if(!$('drawingIncludeExport')?.checked||!drawingObjects.length)return;const r=renderer.domElement.getBoundingClientRect(),sx=outW/Math.max(r.width,1),sy=outH/Math.max(r.height,1),scale=(sx+sy)/2;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';for(const o of drawingObjects){const l=drawingLayer(o.layerId);if(l&&l.visible===false)continue;const pts=o.points.map(p=>drawingScreenPoint(p,camera,outW,outH));if(pts.length<2)continue;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.strokeStyle=o.stroke||'#d7191c';ctx.lineWidth=Math.max(.5,(o.width||2.5)*scale);const dash=drawingDashArray(o.style,o.width).split(/\s+/).filter(Boolean).map(Number).map(v=>v*scale);ctx.setLineDash(dash);ctx.stroke()}ctx.restore();
 }
+
+
+function setDrawingVisibility(v){drawingVisible=!!v;if($('drawingVisible'))$('drawingVisible').checked=drawingVisible;renderDrawingOverlay()}
+function drawingCameraSignature(){
+  if(!drawingSheetView)return '';
+  const p=camera.position,q=camera.quaternion;
+  return [camera.isOrthographicCamera?'o':'p',p.x,p.y,p.z,q.x,q.y,q.z,q.w,camera.zoom,camera.left,camera.right,camera.top,camera.bottom,camera.fov].map(v=>typeof v==='number'?v.toFixed(7):v).join('|');
+}
+function refreshDrawingOverlayIfCameraChanged(){
+  if(!(drawingActive||(drawingVisible&&drawingSheetView&&drawingObjects.length)))return;
+  const sig=drawingCameraSignature();if(sig!==drawingLastCameraSignature){drawingLastCameraSignature=sig;renderDrawingOverlay()}
+}
+
+// ---------- Global mouse navigation ----------
+// Mouse navigation is deliberately independent of the active archaeological tool:
+// wheel = zoom, middle-button drag = pan, right-button drag = rotate.
+let globalMouseNav=null;
+function globalMouseNavBlocked(){
+  // Crop/area contours are screen-space while being drawn. Once a contour has
+  // points, moving the camera would detach those points from the intended edge.
+  return (cropMode&&cropPoints.length>0)||(unwrapAreaMode&&unwrapAreaPoints.length>0);
+}
+function globalNavWorldPoint(clientX,clientY){
+  const r=renderer.domElement.getBoundingClientRect(),ndc=new THREE.Vector2(((clientX-r.left)/Math.max(r.width,1))*2-1,-((clientY-r.top)/Math.max(r.height,1))*2+1),ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);
+  const normal=orbit.target.clone().sub(camera.position).normalize(),plane=new THREE.Plane().setFromNormalAndCoplanarPoint(normal,orbit.target),hit=new THREE.Vector3();return ray.ray.intersectPlane(plane,hit)?hit:null;
+}
+function globalMouseZoom(e){
+  if(globalMouseNavBlocked())return false;
+  const factor=e.deltaY<0?1.14:1/1.14;
+  if(camera.isOrthographicCamera){
+    const before=globalNavWorldPoint(e.clientX,e.clientY);
+    camera.zoom=Math.max(1e-4,Math.min(1e4,camera.zoom*factor));camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
+    const after=globalNavWorldPoint(e.clientX,e.clientY);
+    if(before&&after){const d=before.clone().sub(after);camera.position.add(d);orbit.target.add(d)}
+  }else{
+    const offset=camera.position.clone().sub(orbit.target),dist=Math.max(1e-6,offset.length());
+    const next=Math.max(1e-5,Math.min(1e8,dist/(factor)));camera.position.copy(orbit.target).add(offset.setLength(next));
+  }
+  camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();updateMeasureLabel();updateExportAnnotations();updateDrawingZoomUi();return true;
+}
+function globalMousePan(dx,dy){
+  const r=renderer.domElement.getBoundingClientRect(),h=Math.max(1,r.height);
+  let unitsPerPixel;
+  if(camera.isOrthographicCamera)unitsPerPixel=((camera.top-camera.bottom)/Math.max(camera.zoom,1e-9))/h;
+  else{const dist=Math.max(1e-6,camera.position.distanceTo(orbit.target));unitsPerPixel=(2*dist*Math.tan(THREE.MathUtils.degToRad(camera.fov)*.5))/h}
+  camera.updateMatrixWorld(true);
+  const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0).normalize(),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1).normalize();
+  const move=right.multiplyScalar(-dx*unitsPerPixel).add(up.multiplyScalar(dy*unitsPerPixel));camera.position.add(move);orbit.target.add(move);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();updateMeasureLabel();updateExportAnnotations();
+}
+function globalMouseRotate(dx,dy){
+  const r=renderer.domElement.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height),target=orbit.target.clone(),offset=camera.position.clone().sub(target);if(offset.lengthSq()<1e-12)return;
+  const yaw=-dx*Math.PI*2/w,pitch=-dy*Math.PI/h,up=camera.up.clone().normalize();
+  offset.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(up,yaw));
+  const forward=offset.clone().multiplyScalar(-1).normalize(),right=new THREE.Vector3().crossVectors(forward,up).normalize();
+  if(right.lengthSq()>1e-10){const candidate=offset.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(right,pitch)),newForward=candidate.clone().multiplyScalar(-1).normalize();if(Math.abs(newForward.dot(up))<.995)offset.copy(candidate)}
+  camera.position.copy(target).add(offset);camera.lookAt(target);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();updateMeasureLabel();updateExportAnnotations();
+}
+function globalMousePointerDown(e){
+  if(e.pointerType!=='mouse'||(e.button!==1&&e.button!==2)||globalMouseNavBlocked())return;
+  e.preventDefault();e.stopPropagation();globalMouseNav={button:e.button,x:e.clientX,y:e.clientY,pointerId:e.pointerId};
+}
+function globalMousePointerMove(e){
+  if(!globalMouseNav||e.pointerId!==globalMouseNav.pointerId)return;e.preventDefault();e.stopPropagation();const dx=e.clientX-globalMouseNav.x,dy=e.clientY-globalMouseNav.y;globalMouseNav.x=e.clientX;globalMouseNav.y=e.clientY;if(globalMouseNav.button===1)globalMousePan(dx,dy);else if(globalMouseNav.button===2)globalMouseRotate(dx,dy);
+}
+function globalMousePointerUp(e){if(!globalMouseNav||e.pointerId!==globalMouseNav.pointerId)return;e.preventDefault();e.stopPropagation();globalMouseNav=null}
+function globalMouseWheel(e){if(globalMouseZoom(e)){e.preventDefault();e.stopPropagation()}}
 
 // ---------- Measurement ----------
 const measureRaycaster=new THREE.Raycaster();
@@ -2949,14 +3049,17 @@ $('drawingDeleteSelectedButton').onclick=deleteSelectedDrawing;
 $('drawingExportSvgButton').onclick=exportDrawingSvg;
 $('drawingLayerSelect').onchange=e=>{drawingActiveLayerId=e.target.value;drawingSelectedId=null;drawingSelectedPointIndex=null;rebuildDrawingLayers();renderDrawingOverlay()};
 $('drawingNewLayerButton').onclick=newDrawingLayer;
+$('drawingRenameLayerButton').onclick=renameDrawingLayer;
 $('drawingDeleteLayerButton').onclick=deleteDrawingLayer;
 $('drawingLayerVisible').onchange=e=>setDrawingLayerVisibility(e.target.checked);
+$('drawingVisible').onchange=e=>setDrawingVisibility(e.target.checked);
 $('drawingOverlay').addEventListener('pointerdown',drawingPointerDown,{passive:false});
 $('drawingOverlay').addEventListener('pointermove',drawingPointerMove,{passive:false});
 $('drawingOverlay').addEventListener('pointerup',drawingPointerUp,{passive:false});
 $('drawingOverlay').addEventListener('pointercancel',drawingPointerUp,{passive:false});
 $('drawingOverlay').addEventListener('wheel',e=>{if(!drawingActive)return;e.preventDefault();drawingZoom(e.deltaY<0?1.18:1/1.18)},{passive:false});
 $('drawingOverlay').addEventListener('contextmenu',e=>e.preventDefault());
+$('drawingOverlay').addEventListener('auxclick',e=>{if(drawingActive&&e.button===1)e.preventDefault()});
 
 $('unwrapSelectAreaButton').onclick=beginUnwrapArea;
 $('unwrapClearAreaButton').onclick=clearUnwrapArea;
@@ -3029,6 +3132,13 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setStandardVie
 ['dragleave','drop'].forEach(n=>viewport.addEventListener(n,e=>{e.preventDefault();$('dropZone').classList.remove('show')}));
 viewport.addEventListener('drop',e=>loadFiles(e.dataTransfer.files));
 
+viewport.addEventListener('pointerdown',globalMousePointerDown,{passive:false,capture:true});
+window.addEventListener('pointermove',globalMousePointerMove,{passive:false,capture:true});
+window.addEventListener('pointerup',globalMousePointerUp,{passive:false,capture:true});
+window.addEventListener('pointercancel',globalMousePointerUp,{passive:false,capture:true});
+viewport.addEventListener('wheel',globalMouseWheel,{passive:false,capture:true});
+viewport.addEventListener('contextmenu',e=>{if(e.button===2)e.preventDefault()});
+
 cropInputLayer.addEventListener('pointerdown',down,{passive:false,capture:true});
 cropInputLayer.addEventListener('pointermove',move,{passive:false,capture:true});
 cropInputLayer.addEventListener('pointerup',up,{passive:false,capture:true});
@@ -3036,7 +3146,7 @@ cropInputLayer.addEventListener('pointercancel',up,{passive:false,capture:true})
 ['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend'].forEach(n=>cropInputLayer.addEventListener(n,e=>{if(cropMode){e.preventDefault();e.stopPropagation()}},{passive:false,capture:true}));
 cropInputLayer.addEventListener('contextmenu',e=>e.preventDefault());
 
-window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();updateUnwrapStatus();updateEffectiveExportSize();updateDrawingUi();
+initSidebarUi();window.addEventListener('resize',resize);resize();resetViewToOrigin(false);renderSavedViews();updateExportAnnotations();updateCropButtons();updateHistoryButtons();updateUnderlayUi();updateUnwrapStatus();updateEffectiveExportSize();updateDrawingUi();
 applyLanguage(currentLanguage);
 setStatus(tr('ready',{version:VERSION}));
-(function animate(){requestAnimationFrame(animate);orbit.update();updateMeasureLabel();renderer.render(scene,camera)})();
+(function animate(){requestAnimationFrame(animate);orbit.update();refreshDrawingOverlayIfCameraChanged();updateMeasureLabel();renderer.render(scene,camera)})();

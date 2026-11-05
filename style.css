@@ -198,7 +198,7 @@ select {
 .drawing-tools{grid-template-columns:1fr 1fr}
 .drawing-fields{margin-top:8px}
 #drawingColor{width:100%;height:34px;margin-top:3px;border:1px solid #a7afb7;border-radius:6px;background:#fff;padding:2px}
-.drawing-layer-row{display:grid;grid-template-columns:minmax(0,1fr) 38px 38px;gap:6px;align-items:end;margin-top:8px;margin-bottom:7px}
+.drawing-layer-row{display:grid;grid-template-columns:minmax(0,1fr) 38px 38px 38px;gap:6px;align-items:end;margin-top:8px;margin-bottom:7px}
 .drawing-layer-row button{height:34px;padding:3px;font-size:18px}
 #drawingFinishPolylineButton{width:100%;margin-bottom:7px}
 #drawingSection.drawing-active{background:#eef7fd;margin-left:-6px;margin-right:-6px;padding-left:6px;padding-right:6px;border-radius:8px}
@@ -214,3 +214,34 @@ select {
 .drawing-zoom-row{display:grid;grid-template-columns:42px minmax(72px,1fr) 42px;gap:6px;margin:4px 0 7px}
 .drawing-zoom-row button{padding:6px 8px}
 #drawingZoomResetButton{font-size:12px}
+
+
+/* v0.2.42 collapsible tool panel + archaeological units */
+.brand{display:flex;align-items:center;gap:7px;min-width:0}
+.sidebar-toggle{width:34px;min-width:34px;padding:5px 6px;background:#343c45;color:#fff;border-color:#59636d;font-size:14px;line-height:1}
+.sidebar-toggle:hover{background:#46515c}
+#app.sidebar-hidden{grid-template-columns:0 1fr}
+#app.sidebar-hidden .sidebar{display:none}
+.sidebar > section.collapsible-section{
+  border:1px solid #c8ced4;border-radius:7px;padding:0;margin:8px 0 0;background:#fff;overflow:hidden;
+}
+.sidebar > section.collapsible-section:first-child{border:1px solid #c8ced4;margin-top:0;padding:0}
+.sidebar > section.collapsible-section > h2{
+  margin:0;padding:9px;background:#e7ebee;cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;align-items:center;gap:6px;
+}
+.sidebar > section.collapsible-section > h2::before{content:'▾';display:inline-block;width:12px;color:#56616b;font-size:11px}
+.sidebar > section.collapsible-section.section-collapsed > h2::before{content:'▸'}
+.sidebar > section.collapsible-section > :not(h2){margin-left:9px;margin-right:9px}
+.sidebar > section.collapsible-section > :last-child{margin-bottom:9px}
+.sidebar > section.collapsible-section.section-collapsed > :not(h2){display:none !important}
+#drawingSection.collapsible-section.drawing-active{margin-left:0;margin-right:0;padding-left:0;padding-right:0;border-radius:7px;background:#eef7fd}
+#drawingSection.collapsible-section.drawing-active > h2{background:#dceefa}
+@media(max-width:760px){
+  #app.sidebar-hidden{grid-template-columns:1fr;grid-template-rows:58px minmax(0,1fr) 0;grid-template-areas:'top' 'view' 'side'}
+  #app.sidebar-hidden .sidebar{display:none}
+}
+.sidebar > section.collapsible-section > h2 + *{margin-top:9px}
+
+
+/* v0.2.43 persistent drawing + global mouse navigation */
+#drawingOverlay.visible:not(.active){pointer-events:none}

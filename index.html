@@ -4,15 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.41</title>
-  <link rel="stylesheet" href="style.css?v=0.2.41">
+  <title>ArchaeoPlan v0.2.43</title>
+  <link rel="stylesheet" href="style.css?v=0.2.43">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
+      <button id="sidebarToggleButton" class="sidebar-toggle" type="button" aria-expanded="true" title="Skjul værktøjspanel">◀</button>
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.41</span>
+      <span class="version">v0.2.43</span>
     </div>
     <div class="header-actions">
 
@@ -179,15 +180,17 @@
         </select>
       </label>
       <div class="drawing-layer-row">
-        <label><span id="drawingLayerLabel">Lag</span><select id="drawingLayerSelect"></select></label>
-        <button id="drawingNewLayerButton" title="Nyt lag">+</button>
-        <button id="drawingDeleteLayerButton" title="Slet lag">−</button>
+        <label><span id="drawingLayerLabel">Enhed</span><select id="drawingLayerSelect"></select></label>
+        <button id="drawingNewLayerButton" title="Ny enhed">+</button>
+        <button id="drawingRenameLayerButton" title="Omdøb enhed">✎</button>
+        <button id="drawingDeleteLayerButton" title="Slet enhed">−</button>
       </div>
-      <label class="check-row"><input id="drawingLayerVisible" type="checkbox" checked> <span id="drawingShowLayerText">Vis lag</span></label>
+      <label class="check-row"><input id="drawingLayerVisible" type="checkbox" checked> <span id="drawingShowLayerText">Vis enhed</span></label>
+      <label class="check-row"><input id="drawingVisible" type="checkbox" checked> <span id="drawingShowAllText">Vis tegning</span></label>
       <label class="check-row"><input id="drawingIncludeExport" type="checkbox" checked> <span id="drawingIncludeExportText">Medtag tegning i billedeksport</span></label>
       <div class="button-grid two">
         <button id="drawingDeleteSelectedButton" disabled>Slet valgt</button>
-        <button id="drawingExportSvgButton">Eksportér SVG</button>
+        <button id="drawingExportSvgButton">Gem tegning (SVG)</button>
       </div>
       <p id="drawingStatus" class="muted small">Intet tegneark oprettet.</p>
     </section>
@@ -288,9 +291,6 @@
     </section>
 
 
-
-    <section class="about">
-
     <section>
       <h2 id="unwrapHeading">Udfold overflade</h2>
       <p id="unwrapHelp" class="muted small">Til cylindriske eller næsten cylindriske genstande. Vælg akse og søm/start. Afgræns eventuelt området, lav en forhåndsvisning og vælg eksportbånd.</p>
@@ -339,7 +339,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.41 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.43 klar.</div>
   </main>
 </div>
 
@@ -351,7 +351,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.41"></script>
+<script type="module" src="app.js?v=0.2.43"></script>
 
 
 <dialog id="projectPreparingDialog" class="project-save-dialog">

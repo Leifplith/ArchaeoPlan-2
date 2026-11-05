@@ -304,3 +304,28 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 ## v0.2.41
 - iPad: to-finger pinch zoom and simultaneous two-finger pan now work while the drawing sheet is active.
 - Drawing with Apple Pencil / one pointer remains separate from navigation.
+
+
+## v0.2.42 – arkæologiske enheder og sammenklappeligt værktøjspanel
+- Tegnearkets tidligere interne tegnelag bruges nu som **arkæologiske enheder** med frit valgte betegnelser, fx `A34`, `L98`, `SU45` eller lokale museumsstandarder.
+- Nye vektorer knyttes automatisk til den aktive enhed.
+- Enheder kan oprettes, omdøbes, vælges samt vises/skjules samlet.
+- Sletning af en enhed fjerner de tilknyttede vektorer; funktionen kan fortrydes via undo.
+- Projektformatet bevarer den eksisterende interne `layers`-struktur, så ældre `.archaeoplan`-projekter fortsat kan åbnes.
+- PC: musehjul = zoom, og **musehjul/midterknap holdt nede + træk = panorering**, uden at skifte væk fra det aktive tegneværktøj.
+- Hver hovedgruppe i venstre værktøjspanel kan foldes sammen til en bjælke med overskrift. Tilstanden huskes lokalt i browseren.
+- Hele værktøjspanelet kan skjules med knappen ved ArchaeoPlan-logoet og åbnes igen samme sted.
+- Harris-matrix og stratigrafiske relationer er bevidst ikke med i denne version.
+
+
+## v0.2.43 – global navigation og vedvarende tegning
+
+- Fast PC-navigation uafhængigt af aktivt værktøj: hjul = zoom, midterklik + træk = panorér, højreklik + træk = rotation.
+- Venstre museknap forbliver reserveret til det aktive værktøj.
+- Tegningen kan blive synlig, når tegnearket lukkes.
+- Ny global **Vis tegning**-kontakt, uafhængig af enhedsvisning.
+- **Medtag tegning i billedeksport** er fortsat en separat kontakt, så et rent ortobillede kan eksporteres uden streger.
+- SVG gemmes nu direkte som fil via **Gem tegning (SVG)** i stedet for først at åbne delearket.
+- Tegningens globale synlighed gemmes i `.archaeoplan`-projektet.
+
+Bemærk: Under en allerede påbegyndt skærmbaseret beskærings-/områdekontur låses kameranavigation fortsat, fordi kamerabevægelse ellers ville flytte modellen væk fra de allerede tegnede skærmpunkter.
