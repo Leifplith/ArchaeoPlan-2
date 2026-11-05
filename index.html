@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.38</title>
-  <link rel="stylesheet" href="style.css?v=0.2.38">
+  <title>ArchaeoPlan v0.2.39</title>
+  <link rel="stylesheet" href="style.css?v=0.2.39">
 </head>
 <body>
 <div id="app">
   <header class="topbar">
     <div class="brand">
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.38</span>
+      <span class="version">v0.2.39</span>
     </div>
     <div class="header-actions">
 
@@ -140,6 +140,46 @@
         <button id="clearMeasureButton">Ryd måling</button>
       </div>
       <p id="measureResult" class="muted small">Ingen måling.</p>
+    </section>
+
+    <section id="drawingSection">
+      <h2 id="drawingHeading">Tegneark</h2>
+      <p id="drawingHelp" class="muted small">Et vektorlag bundet til en ortografisk visning. Start tegnearket, når planen eller profilen står rigtigt.</p>
+      <div class="button-grid two">
+        <button id="drawingToggleButton">Start tegneark</button>
+        <button id="drawingClearButton">Ryd tegning</button>
+      </div>
+      <div class="button-grid two drawing-tools">
+        <button id="drawingSelectButton" class="active">Vælg / flyt</button>
+        <button id="drawingFreehandButton">Frihånd</button>
+        <button id="drawingLineButton">Linje</button>
+        <button id="drawingPolylineButton">Polyline</button>
+      </div>
+      <button id="drawingFinishPolylineButton" disabled>Afslut polyline</button>
+      <div class="field-grid two drawing-fields">
+        <label><span id="drawingColorLabel">Farve</span><input id="drawingColor" type="color" value="#d7191c"></label>
+        <label><span id="drawingWidthLabel">Tykkelse</span><input id="drawingWidth" type="number" value="2.5" min="0.5" max="20" step="0.5"></label>
+      </div>
+      <label><span id="drawingStyleLabel">Stregtype</span>
+        <select id="drawingStyle">
+          <option value="solid">Sammenhængende</option>
+          <option value="dashed">Stiplet</option>
+          <option value="dashdot">Streg-prik</option>
+          <option value="longshort">Lang-kort</option>
+        </select>
+      </label>
+      <div class="drawing-layer-row">
+        <label><span id="drawingLayerLabel">Lag</span><select id="drawingLayerSelect"></select></label>
+        <button id="drawingNewLayerButton" title="Nyt lag">+</button>
+        <button id="drawingDeleteLayerButton" title="Slet lag">−</button>
+      </div>
+      <label class="check-row"><input id="drawingLayerVisible" type="checkbox" checked> <span id="drawingShowLayerText">Vis lag</span></label>
+      <label class="check-row"><input id="drawingIncludeExport" type="checkbox" checked> <span id="drawingIncludeExportText">Medtag tegning i billedeksport</span></label>
+      <div class="button-grid two">
+        <button id="drawingDeleteSelectedButton" disabled>Slet valgt</button>
+        <button id="drawingExportSvgButton">Eksportér SVG</button>
+      </div>
+      <p id="drawingStatus" class="muted small">Intet tegneark oprettet.</p>
     </section>
 
     
@@ -277,6 +317,11 @@
       <polygon id="cropPolygon"></polygon>
       <g id="cropPoints"></g>
     </svg>
+    <svg id="drawingOverlay" aria-label="Tegneark">
+      <g id="drawingObjects"></g>
+      <g id="drawingPreview"></g>
+      <g id="drawingSelection"></g>
+    </svg>
     <div id="cropHint"></div>
     <div id="exportFrame" aria-hidden="true"></div>
     <div id="exportAnnotations" aria-hidden="true"><div id="scaleBarOverlay"></div><div id="northArrowOverlay"><div class="northArrowGlyph">↑</div><div class="northArrowN">N</div></div></div>
@@ -284,7 +329,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.38 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.39 klar.</div>
   </main>
 </div>
 
@@ -296,7 +341,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.38"></script>
+<script type="module" src="app.js?v=0.2.39"></script>
 
 
 <dialog id="projectPreparingDialog" class="project-save-dialog">

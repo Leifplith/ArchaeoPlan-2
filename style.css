@@ -181,3 +181,24 @@ select {
 #advancedExportDetails{margin:10px 0}
 #advancedExportDetails summary{cursor:pointer;font-weight:600;margin-bottom:8px}
 #exportSuitability{margin-top:-4px}
+
+
+/* v0.2.39 vector drawing sheet */
+#drawingOverlay{
+  display:none;position:absolute;inset:0;z-index:900;width:100%;height:100%;
+  pointer-events:none;touch-action:none;overflow:visible;
+}
+#drawingOverlay.visible{display:block}
+#drawingOverlay.active{pointer-events:auto;cursor:crosshair}
+#drawingOverlay.select-tool{cursor:default}
+#drawingOverlay path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+#drawingOverlay .drawing-selected{filter:drop-shadow(0 0 2px rgba(0,120,215,.95))}
+#drawingSelection circle{fill:#fff;stroke:#1677b8;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
+#drawingPreview path{opacity:.72}
+.drawing-tools{grid-template-columns:1fr 1fr}
+.drawing-fields{margin-top:8px}
+#drawingColor{width:100%;height:34px;margin-top:3px;border:1px solid #a7afb7;border-radius:6px;background:#fff;padding:2px}
+.drawing-layer-row{display:grid;grid-template-columns:minmax(0,1fr) 38px 38px;gap:6px;align-items:end;margin-top:8px;margin-bottom:7px}
+.drawing-layer-row button{height:34px;padding:3px;font-size:18px}
+#drawingFinishPolylineButton{width:100%;margin-bottom:7px}
+#drawingSection.drawing-active{background:#eef7fd;margin-left:-6px;margin-right:-6px;padding-left:6px;padding-right:6px;border-radius:8px}
