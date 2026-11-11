@@ -318,7 +318,7 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Harris-matrix og stratigrafiske relationer er bevidst ikke med i denne version.
 
 
-## v0.2.43 – global navigation og vedvarende tegning
+## v0.2.44 – global navigation og vedvarende tegning
 
 - Fast PC-navigation uafhængigt af aktivt værktøj: hjul = zoom, midterklik + træk = panorér, højreklik + træk = rotation.
 - Venstre museknap forbliver reserveret til det aktive værktøj.
@@ -329,3 +329,12 @@ Beskæring sker stadig ved eksisterende trekantgrænser. Der skabes endnu ikke n
 - Tegningens globale synlighed gemmes i `.archaeoplan`-projektet.
 
 Bemærk: Under en allerede påbegyndt skærmbaseret beskærings-/områdekontur låses kameranavigation fortsat, fordi kamerabevægelse ellers ville flytte modellen væk fra de allerede tegnede skærmpunkter.
+
+## v0.2.44 — navigation, vektorredigering og 3D-eksport
+- Fast PC-navigation på tværs af værktøjer: musehjul zoomer, midterste museknap + træk panorerer, højre museknap + træk roterer, venstre museknap bruges af det aktive værktøj.
+- Fjern knudepunkt er gjort mere tolerant og kan også udføres direkte på et valgt knudepunkt.
+- Delete/Backspace sletter hele den valgte vektorlinje i tegnearket.
+- Nyt sakseværktøj deler en linje i to selvstændige vektorer med samme enhed, farve, tykkelse og stregtype.
+- Billedeksport kan automatisk skjule arbejdsmarkører som transform-gizmo, gitter, akser og målepunkter/-linjer; målestok og nordpil styres fortsat separat.
+- Ny eksport af alle synlige 3D-modeller samlet i én GLB med deres indbyrdes placering, rotation, skala og teksturer bevaret.
+- De nye handlinger understøtter undo/redo, hvor det er relevant.

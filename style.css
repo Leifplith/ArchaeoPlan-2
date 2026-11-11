@@ -208,6 +208,7 @@ select {
 #drawingOverlay.pan-tool:active{cursor:grabbing}
 #drawingOverlay.add-node-tool{cursor:copy}
 #drawingOverlay.remove-node-tool{cursor:not-allowed}
+#drawingOverlay.cut-tool{cursor:crosshair}
 #drawingSelection .drawing-node{fill:#fff;stroke:#1677b8;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
 #drawingSelection .drawing-node.selected-node{fill:#1677b8;stroke:#fff;stroke-width:2.5}
 .drawing-node-tools{margin-top:2px}

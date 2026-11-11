@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.43</title>
-  <link rel="stylesheet" href="style.css?v=0.2.43">
+  <title>ArchaeoPlan v0.2.44</title>
+  <link rel="stylesheet" href="style.css?v=0.2.44">
 </head>
 <body>
 <div id="app">
@@ -13,7 +13,7 @@
     <div class="brand">
       <button id="sidebarToggleButton" class="sidebar-toggle" type="button" aria-expanded="true" title="Skjul værktøjspanel">◀</button>
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.43</span>
+      <span class="version">v0.2.44</span>
     </div>
     <div class="header-actions">
 
@@ -157,9 +157,10 @@
         <button id="drawingLineButton">Linje</button>
         <button id="drawingPolylineButton">Polyline</button>
       </div>
-      <div class="button-grid two drawing-node-tools">
+      <div class="button-grid three drawing-node-tools">
         <button id="drawingAddNodeButton">Tilføj knudepunkt</button>
         <button id="drawingRemoveNodeButton">Fjern knudepunkt</button>
+        <button id="drawingCutButton">✂ Klip linje</button>
       </div>
       <div class="drawing-zoom-row">
         <button id="drawingZoomOutButton" title="Zoom ud">−</button>
@@ -265,6 +266,8 @@
 
       <button id="exportPngButton" class="primary">Gem billede</button>
       <button id="shareImageButton">Del / Gem til Fotos</button>
+      <button id="exportGlbButton">Eksportér samlet 3D-model (GLB)</button>
+      <label class="check-row"><input id="cleanExportMarkers" type="checkbox" checked> <span id="cleanExportMarkersText">Skjul arbejdsmarkører i billedeksport</span></label>
 
       <hr class="section-rule">
       <h3 id="annotationsHeading">Eksportmarkeringer</h3>
@@ -339,7 +342,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.43 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.44 klar.</div>
   </main>
 </div>
 
@@ -351,7 +354,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.43"></script>
+<script type="module" src="app.js?v=0.2.44"></script>
 
 
 <dialog id="projectPreparingDialog" class="project-save-dialog">
@@ -418,6 +421,17 @@
         <button id="unwrapExportBandButton" class="primary">Eksportér valgt bånd</button>
         <button id="unwrapExportFullButton">Eksportér hele udfoldningen</button>
       </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="modelExportDialog" class="project-save-dialog">
+  <div class="dialog-card">
+    <h2 id="modelExportHeading">3D-modellen er klar</h2>
+    <p id="modelExportText">Gem den samlede synlige model som GLB.</p>
+    <div class="button-grid two">
+      <button id="savePreparedGlbButton" class="primary">Gem GLB</button>
+      <button id="cancelPreparedGlbButton">Luk</button>
     </div>
   </div>
 </dialog>

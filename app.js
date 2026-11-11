@@ -11,9 +11,9 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.43';
+const VERSION='0.2.44';
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
+const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),modelExportDialog=$('modelExportDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
 const exportFrame=$('exportFrame'),measureResult=$('measureResult'),scaleBarOverlay=$('scaleBarOverlay'),northArrowOverlay=$('northArrowOverlay');
 
@@ -73,7 +73,7 @@ transform.addEventListener('dragging-changed',e=>{
 transform.addEventListener('objectChange',syncTransformFields);
 scene.add(transform);
 
-const grid=new THREE.GridHelper(20,20,0x6c7379,0xaab0b5);scene.add(grid);scene.add(new THREE.AxesHelper(1));
+const grid=new THREE.GridHelper(20,20,0x6c7379,0xaab0b5);scene.add(grid);const axesHelper=new THREE.AxesHelper(1);scene.add(axesHelper);
 
 const models=[];let selectedModel=null;let modelNumber=1;
 const liveObjectUrls=new Set();
@@ -87,7 +87,7 @@ let underlay=null,underlayImageData=null,underlaySelected=false;
 let unwrapPickMode=null,unwrapStartAngle=null,unwrapEndAngle=null,unwrapReverse=false,preparedFrieze=null;
 let unwrapAreaMode=false,unwrapAreaPoints=[],unwrapBandTop=0,unwrapBandBottom=1,unwrapPreviewUrl=null;
 let cropCalculating=false,cropCancelRequested=false;
-let preparedImage=null;
+let preparedImage=null,preparedModelExport=null;
 
 // ---------- Collapsible tool panel ----------
 const SIDEBAR_HIDDEN_KEY='archaeoplan-sidebar-hidden';
@@ -117,7 +117,7 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
-  drawingSheet:'Tegneark', drawingHelp:'Et vektorlag bundet til en ortografisk visning. Start tegnearket, når planen eller profilen står rigtigt.', drawingStart:'Start tegneark', drawingClose:'Luk tegneark', drawingClear:'Ryd tegning', drawingSelect:'Vælg / flyt', drawingFreehand:'Frihånd', drawingLine:'Linje', drawingPolyline:'Polyline', drawingFinish:'Afslut polyline', drawingColor:'Farve', drawingWidth:'Tykkelse', drawingStyle:'Stregtype', drawingSolid:'Sammenhængende', drawingDashed:'Stiplet', drawingDashDot:'Streg-prik', drawingLongShort:'Lang-kort', drawingLayer:'Enhed', drawingNewLayer:'Ny enhed', drawingRenameLayer:'Omdøb enhed', drawingDeleteLayer:'Slet enhed', drawingShowLayer:'Vis enhed', drawingShowAll:'Vis tegning', drawingIncludeExport:'Medtag tegning i billedeksport', drawingDeleteSelected:'Slet valgt', drawingExportSvg:'Gem tegning (SVG)', drawingNone:'Intet tegneark oprettet.', drawingActiveStatus:'Tegneark aktivt – navigation er stadig tilgængelig.', drawingClosedStatus:'Tegnearket er gemt. Åbn det igen for at fortsætte.', drawingCleared:'Tegningen er ryddet.', drawingLayerPrompt:'Betegnelse for ny enhed (fx A34, L98 eller SU45):', drawingRenameLayerPrompt:'Ny betegnelse for enheden:', drawingLayerDefault:'Enhed', drawingDeleteLayerConfirm:'Slet denne enhed og alle streger knyttet til den?', drawingClearConfirm:'Ryd hele tegningen?', drawingNoObjects:'Der er ingen vektorer at eksportere.', drawingSvgExported:'SVG-tegning gemt.', drawingNeedOrtho:'Tegnearket bruger ortografisk visning.', drawingPan:'Panorér', drawingAddNode:'Tilføj knudepunkt', drawingRemoveNode:'Fjern knudepunkt', drawingZoomIn:'Zoom ind', drawingZoomOut:'Zoom ud', drawingZoomReset:'Nulstil zoom', drawingNodeRemoved:'Knudepunkt fjernet.', drawingNodeAdded:'Knudepunkt tilføjet.', drawingNodeMin:'En linje skal have mindst to knudepunkter.', sidebarHide:'Skjul værktøjspanel', sidebarShow:'Vis værktøjspanel',
+  drawingSheet:'Tegneark', drawingHelp:'Et vektorlag bundet til en ortografisk visning. Start tegnearket, når planen eller profilen står rigtigt.', drawingStart:'Start tegneark', drawingClose:'Luk tegneark', drawingClear:'Ryd tegning', drawingSelect:'Vælg / flyt', drawingFreehand:'Frihånd', drawingLine:'Linje', drawingPolyline:'Polyline', drawingFinish:'Afslut polyline', drawingColor:'Farve', drawingWidth:'Tykkelse', drawingStyle:'Stregtype', drawingSolid:'Sammenhængende', drawingDashed:'Stiplet', drawingDashDot:'Streg-prik', drawingLongShort:'Lang-kort', drawingLayer:'Enhed', drawingNewLayer:'Ny enhed', drawingRenameLayer:'Omdøb enhed', drawingDeleteLayer:'Slet enhed', drawingShowLayer:'Vis enhed', drawingShowAll:'Vis tegning', drawingIncludeExport:'Medtag tegning i billedeksport', drawingDeleteSelected:'Slet valgt', drawingExportSvg:'Gem tegning (SVG)', drawingNone:'Intet tegneark oprettet.', drawingActiveStatus:'Tegneark aktivt – navigation er stadig tilgængelig.', drawingClosedStatus:'Tegnearket er gemt. Åbn det igen for at fortsætte.', drawingCleared:'Tegningen er ryddet.', drawingLayerPrompt:'Betegnelse for ny enhed (fx A34, L98 eller SU45):', drawingRenameLayerPrompt:'Ny betegnelse for enheden:', drawingLayerDefault:'Enhed', drawingDeleteLayerConfirm:'Slet denne enhed og alle streger knyttet til den?', drawingClearConfirm:'Ryd hele tegningen?', drawingNoObjects:'Der er ingen vektorer at eksportere.', drawingSvgExported:'SVG-tegning gemt.', drawingNeedOrtho:'Tegnearket bruger ortografisk visning.', drawingPan:'Panorér', drawingAddNode:'Tilføj knudepunkt', drawingRemoveNode:'Fjern knudepunkt', drawingZoomIn:'Zoom ind', drawingZoomOut:'Zoom ud', drawingZoomReset:'Nulstil zoom', drawingNodeRemoved:'Knudepunkt fjernet.', drawingNodeAdded:'Knudepunkt tilføjet.', drawingNodeMin:'En linje skal have mindst to knudepunkter.', drawingCut:'✂ Klip linje', drawingCutDone:'Linjen er klippet i to.', drawingCutNeedLine:'Tryk på den linje, der skal klippes.', cleanExportMarkers:'Skjul arbejdsmarkører i billedeksport', exportGlb:'Eksportér samlet 3D-model (GLB)', modelExportReady:'3D-modellen er klar', modelExportText:'Gem den samlede synlige model som GLB.', modelExportSave:'Gem GLB', modelExportNoModels:'Der er ingen synlige modeller at eksportere.', modelExportPreparing:'Forbereder samlet 3D-model…', modelExportSaved:'Samlet 3D-model gemt.', sidebarHide:'Skjul værktøjspanel', sidebarShow:'Vis værktøjspanel',
 
   exportPurpose:'Formål', exportSize:'Størrelse', exportPurposeScreen:'Skærm / PowerPoint', exportPurposeBook:'Bog / artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Udstilling', exportPurposeCustom:'Brugerdefineret', exportSuitScreen:'Egnet til skærm og præsentation.', exportSuitBook:'Egnet til bog og artikel.', exportSuitPoster:'Egnet til plakattryk.', exportSuitExhibition:'Egnet til stor udstillingsgrafik.', exportSuitCustom:'Brugerdefineret eksport.', advancedExport:'Avanceret…', saveImage:'Gem billede', exportSafeNote:'Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.',
 
@@ -188,7 +188,7 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
-  drawingSheet:'Zeichenblatt', drawingHelp:'Eine Vektorebene, die an eine orthografische Ansicht gebunden ist. Starten Sie das Zeichenblatt, wenn Plan oder Profil korrekt ausgerichtet ist.', drawingStart:'Zeichenblatt starten', drawingClose:'Zeichenblatt schließen', drawingClear:'Zeichnung löschen', drawingSelect:'Auswählen / verschieben', drawingFreehand:'Freihand', drawingLine:'Linie', drawingPolyline:'Polylinie', drawingFinish:'Polylinie beenden', drawingColor:'Farbe', drawingWidth:'Stärke', drawingStyle:'Linientyp', drawingSolid:'Durchgezogen', drawingDashed:'Gestrichelt', drawingDashDot:'Strich-Punkt', drawingLongShort:'Lang-kurz', drawingLayer:'Einheit', drawingNewLayer:'Neue Einheit', drawingRenameLayer:'Einheit umbenennen', drawingDeleteLayer:'Einheit löschen', drawingShowLayer:'Einheit anzeigen', drawingShowAll:'Zeichnung anzeigen', drawingIncludeExport:'Zeichnung im Bildexport einschließen', drawingDeleteSelected:'Auswahl löschen', drawingExportSvg:'Zeichnung speichern (SVG)', drawingNone:'Kein Zeichenblatt erstellt.', drawingActiveStatus:'Zeichenblatt aktiv – Navigation bleibt verfügbar.', drawingClosedStatus:'Das Zeichenblatt ist gespeichert. Öffnen Sie es erneut, um weiterzuarbeiten.', drawingCleared:'Zeichnung gelöscht.', drawingLayerPrompt:'Bezeichnung der neuen Einheit (z. B. A34, L98 oder SU45):', drawingRenameLayerPrompt:'Neue Bezeichnung der Einheit:', drawingLayerDefault:'Einheit', drawingDeleteLayerConfirm:'Diese Einheit und alle zugehörigen Linien löschen?', drawingClearConfirm:'Gesamte Zeichnung löschen?', drawingNoObjects:'Keine Vektoren zum Exportieren.', drawingSvgExported:'SVG-Zeichnung gespeichert.', drawingNeedOrtho:'Das Zeichenblatt verwendet die orthografische Ansicht.', drawingPan:'Verschieben', drawingAddNode:'Knotenpunkt hinzufügen', drawingRemoveNode:'Knotenpunkt entfernen', drawingZoomIn:'Hineinzoomen', drawingZoomOut:'Herauszoomen', drawingZoomReset:'Zoom zurücksetzen', drawingNodeRemoved:'Knotenpunkt entfernt.', drawingNodeAdded:'Knotenpunkt hinzugefügt.', drawingNodeMin:'Eine Linie muss mindestens zwei Knotenpunkte haben.', sidebarHide:'Werkzeugleiste ausblenden', sidebarShow:'Werkzeugleiste anzeigen',
+  drawingSheet:'Zeichenblatt', drawingHelp:'Eine Vektorebene, die an eine orthografische Ansicht gebunden ist. Starten Sie das Zeichenblatt, wenn Plan oder Profil korrekt ausgerichtet ist.', drawingStart:'Zeichenblatt starten', drawingClose:'Zeichenblatt schließen', drawingClear:'Zeichnung löschen', drawingSelect:'Auswählen / verschieben', drawingFreehand:'Freihand', drawingLine:'Linie', drawingPolyline:'Polylinie', drawingFinish:'Polylinie beenden', drawingColor:'Farbe', drawingWidth:'Stärke', drawingStyle:'Linientyp', drawingSolid:'Durchgezogen', drawingDashed:'Gestrichelt', drawingDashDot:'Strich-Punkt', drawingLongShort:'Lang-kurz', drawingLayer:'Einheit', drawingNewLayer:'Neue Einheit', drawingRenameLayer:'Einheit umbenennen', drawingDeleteLayer:'Einheit löschen', drawingShowLayer:'Einheit anzeigen', drawingShowAll:'Zeichnung anzeigen', drawingIncludeExport:'Zeichnung im Bildexport einschließen', drawingDeleteSelected:'Auswahl löschen', drawingExportSvg:'Zeichnung speichern (SVG)', drawingNone:'Kein Zeichenblatt erstellt.', drawingActiveStatus:'Zeichenblatt aktiv – Navigation bleibt verfügbar.', drawingClosedStatus:'Das Zeichenblatt ist gespeichert. Öffnen Sie es erneut, um weiterzuarbeiten.', drawingCleared:'Zeichnung gelöscht.', drawingLayerPrompt:'Bezeichnung der neuen Einheit (z. B. A34, L98 oder SU45):', drawingRenameLayerPrompt:'Neue Bezeichnung der Einheit:', drawingLayerDefault:'Einheit', drawingDeleteLayerConfirm:'Diese Einheit und alle zugehörigen Linien löschen?', drawingClearConfirm:'Gesamte Zeichnung löschen?', drawingNoObjects:'Keine Vektoren zum Exportieren.', drawingSvgExported:'SVG-Zeichnung gespeichert.', drawingNeedOrtho:'Das Zeichenblatt verwendet die orthografische Ansicht.', drawingPan:'Verschieben', drawingAddNode:'Knotenpunkt hinzufügen', drawingRemoveNode:'Knotenpunkt entfernen', drawingZoomIn:'Hineinzoomen', drawingZoomOut:'Herauszoomen', drawingZoomReset:'Zoom zurücksetzen', drawingNodeRemoved:'Knotenpunkt entfernt.', drawingNodeAdded:'Knotenpunkt hinzugefügt.', drawingNodeMin:'Eine Linie muss mindestens zwei Knotenpunkte haben.', drawingCut:'✂ Linie schneiden', drawingCutDone:'Die Linie wurde in zwei Teile geteilt.', drawingCutNeedLine:'Klicken Sie auf die zu schneidende Linie.', cleanExportMarkers:'Arbeitsmarkierungen beim Bildexport ausblenden', exportGlb:'Zusammengeführtes 3D-Modell exportieren (GLB)', modelExportReady:'Das 3D-Modell ist bereit', modelExportText:'Das zusammengeführte sichtbare Modell als GLB speichern.', modelExportSave:'GLB speichern', modelExportNoModels:'Keine sichtbaren Modelle zum Exportieren.', modelExportPreparing:'Zusammengeführtes 3D-Modell wird vorbereitet…', modelExportSaved:'Zusammengeführtes 3D-Modell gespeichert.', sidebarHide:'Werkzeugleiste ausblenden', sidebarShow:'Werkzeugleiste anzeigen',
 
   exportPurpose:'Zweck', exportSize:'Größe', exportPurposeScreen:'Bildschirm / PowerPoint', exportPurposeBook:'Buch / Artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Ausstellung', exportPurposeCustom:'Benutzerdefiniert', exportSuitScreen:'Geeignet für Bildschirm und Präsentation.', exportSuitBook:'Geeignet für Buch und Artikel.', exportSuitPoster:'Geeignet für Plakatdruck.', exportSuitExhibition:'Geeignet für große Ausstellungsgrafik.', exportSuitCustom:'Benutzerdefinierter Export.', advancedExport:'Erweitert…', saveImage:'Bild speichern', exportSafeNote:'Große Bilder werden automatisch an die sichere Gerätegrenze angepasst. Originaltexturen bleiben erhalten.',
 
@@ -256,7 +256,7 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
-  drawingSheet:'Drawing sheet', drawingHelp:'A vector layer tied to an orthographic view. Start the sheet when the plan or section is aligned correctly.', drawingStart:'Start drawing sheet', drawingClose:'Close drawing sheet', drawingClear:'Clear drawing', drawingSelect:'Select / move', drawingFreehand:'Freehand', drawingLine:'Line', drawingPolyline:'Polyline', drawingFinish:'Finish polyline', drawingColor:'Colour', drawingWidth:'Width', drawingStyle:'Line type', drawingSolid:'Solid', drawingDashed:'Dashed', drawingDashDot:'Dash-dot', drawingLongShort:'Long-short', drawingLayer:'Unit', drawingNewLayer:'New unit', drawingRenameLayer:'Rename unit', drawingDeleteLayer:'Delete unit', drawingShowLayer:'Show unit', drawingShowAll:'Show drawing', drawingIncludeExport:'Include drawing in image export', drawingDeleteSelected:'Delete selected', drawingExportSvg:'Save drawing (SVG)', drawingNone:'No drawing sheet created.', drawingActiveStatus:'Drawing sheet active – navigation remains available.', drawingClosedStatus:'The drawing sheet is saved. Open it again to continue.', drawingCleared:'Drawing cleared.', drawingLayerPrompt:'Identifier for new unit (e.g. A34, L98 or SU45):', drawingRenameLayerPrompt:'New identifier for the unit:', drawingLayerDefault:'Unit', drawingDeleteLayerConfirm:'Delete this unit and all lines linked to it?', drawingClearConfirm:'Clear the entire drawing?', drawingNoObjects:'There are no vectors to export.', drawingSvgExported:'SVG drawing saved.', drawingNeedOrtho:'The drawing sheet uses orthographic view.', drawingPan:'Pan', drawingAddNode:'Add node', drawingRemoveNode:'Remove node', drawingZoomIn:'Zoom in', drawingZoomOut:'Zoom out', drawingZoomReset:'Reset zoom', drawingNodeRemoved:'Node removed.', drawingNodeAdded:'Node added.', drawingNodeMin:'A line must have at least two nodes.', sidebarHide:'Hide tool panel', sidebarShow:'Show tool panel',
+  drawingSheet:'Drawing sheet', drawingHelp:'A vector layer tied to an orthographic view. Start the sheet when the plan or section is aligned correctly.', drawingStart:'Start drawing sheet', drawingClose:'Close drawing sheet', drawingClear:'Clear drawing', drawingSelect:'Select / move', drawingFreehand:'Freehand', drawingLine:'Line', drawingPolyline:'Polyline', drawingFinish:'Finish polyline', drawingColor:'Colour', drawingWidth:'Width', drawingStyle:'Line type', drawingSolid:'Solid', drawingDashed:'Dashed', drawingDashDot:'Dash-dot', drawingLongShort:'Long-short', drawingLayer:'Unit', drawingNewLayer:'New unit', drawingRenameLayer:'Rename unit', drawingDeleteLayer:'Delete unit', drawingShowLayer:'Show unit', drawingShowAll:'Show drawing', drawingIncludeExport:'Include drawing in image export', drawingDeleteSelected:'Delete selected', drawingExportSvg:'Save drawing (SVG)', drawingNone:'No drawing sheet created.', drawingActiveStatus:'Drawing sheet active – navigation remains available.', drawingClosedStatus:'The drawing sheet is saved. Open it again to continue.', drawingCleared:'Drawing cleared.', drawingLayerPrompt:'Identifier for new unit (e.g. A34, L98 or SU45):', drawingRenameLayerPrompt:'New identifier for the unit:', drawingLayerDefault:'Unit', drawingDeleteLayerConfirm:'Delete this unit and all lines linked to it?', drawingClearConfirm:'Clear the entire drawing?', drawingNoObjects:'There are no vectors to export.', drawingSvgExported:'SVG drawing saved.', drawingNeedOrtho:'The drawing sheet uses orthographic view.', drawingPan:'Pan', drawingAddNode:'Add node', drawingRemoveNode:'Remove node', drawingZoomIn:'Zoom in', drawingZoomOut:'Zoom out', drawingZoomReset:'Reset zoom', drawingNodeRemoved:'Node removed.', drawingNodeAdded:'Node added.', drawingNodeMin:'A line must have at least two nodes.', drawingCut:'✂ Cut line', drawingCutDone:'The line was split in two.', drawingCutNeedLine:'Click the line where it should be cut.', cleanExportMarkers:'Hide work markers in image export', exportGlb:'Export combined 3D model (GLB)', modelExportReady:'3D model is ready', modelExportText:'Save the combined visible model as GLB.', modelExportSave:'Save GLB', modelExportNoModels:'There are no visible models to export.', modelExportPreparing:'Preparing combined 3D model…', modelExportSaved:'Combined 3D model saved.', sidebarHide:'Hide tool panel', sidebarShow:'Show tool panel',
 
   exportPurpose:'Purpose', exportSize:'Size', exportPurposeScreen:'Screen / PowerPoint', exportPurposeBook:'Book / article', exportPurposePoster:'Poster', exportPurposeExhibition:'Exhibition', exportPurposeCustom:'Custom', exportSuitScreen:'Suitable for screen and presentation.', exportSuitBook:'Suitable for book and article.', exportSuitPoster:'Suitable for poster printing.', exportSuitExhibition:'Suitable for large exhibition graphics.', exportSuitCustom:'Custom export.', advancedExport:'Advanced…', saveImage:'Save image', exportSafeNote:'Large images are automatically adjusted to the device-safe limit. Original textures are preserved.',
 
@@ -324,7 +324,7 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
-  drawingSheet:'Feuille de dessin', drawingHelp:'Un calque vectoriel lié à une vue orthographique. Démarrez la feuille lorsque le plan ou la coupe est correctement orienté.', drawingStart:'Démarrer la feuille', drawingClose:'Fermer la feuille', drawingClear:'Effacer le dessin', drawingSelect:'Sélectionner / déplacer', drawingFreehand:'Main levée', drawingLine:'Ligne', drawingPolyline:'Polyligne', drawingFinish:'Terminer la polyligne', drawingColor:'Couleur', drawingWidth:'Épaisseur', drawingStyle:'Type de ligne', drawingSolid:'Continue', drawingDashed:'Tiretée', drawingDashDot:'Tiret-point', drawingLongShort:'Long-court', drawingLayer:'Unité', drawingNewLayer:'Nouvelle unité', drawingRenameLayer:'Renommer l’unité', drawingDeleteLayer:'Supprimer l’unité', drawingShowLayer:'Afficher l’unité', drawingShowAll:'Afficher le dessin', drawingIncludeExport:'Inclure le dessin dans l’export image', drawingDeleteSelected:'Supprimer la sélection', drawingExportSvg:'Enregistrer le dessin (SVG)', drawingNone:'Aucune feuille de dessin créée.', drawingActiveStatus:'Feuille active – la navigation reste disponible.', drawingClosedStatus:'La feuille est enregistrée. Ouvrez-la à nouveau pour continuer.', drawingCleared:'Dessin effacé.', drawingLayerPrompt:'Identifiant de la nouvelle unité (p. ex. A34, L98 ou SU45) :', drawingRenameLayerPrompt:'Nouvel identifiant de l’unité :', drawingLayerDefault:'Unité', drawingDeleteLayerConfirm:'Supprimer cette unité et tous les traits qui lui sont liés ?', drawingClearConfirm:'Effacer tout le dessin ?', drawingNoObjects:'Aucun vecteur à exporter.', drawingSvgExported:'Dessin SVG enregistré.', drawingNeedOrtho:'La feuille utilise la vue orthographique.', drawingPan:'Panoramique', drawingAddNode:'Ajouter un nœud', drawingRemoveNode:'Supprimer un nœud', drawingZoomIn:'Zoom avant', drawingZoomOut:'Zoom arrière', drawingZoomReset:'Réinitialiser le zoom', drawingNodeRemoved:'Nœud supprimé.', drawingNodeAdded:'Nœud ajouté.', drawingNodeMin:'Une ligne doit comporter au moins deux nœuds.', sidebarHide:'Masquer le panneau d’outils', sidebarShow:'Afficher le panneau d’outils',
+  drawingSheet:'Feuille de dessin', drawingHelp:'Un calque vectoriel lié à une vue orthographique. Démarrez la feuille lorsque le plan ou la coupe est correctement orienté.', drawingStart:'Démarrer la feuille', drawingClose:'Fermer la feuille', drawingClear:'Effacer le dessin', drawingSelect:'Sélectionner / déplacer', drawingFreehand:'Main levée', drawingLine:'Ligne', drawingPolyline:'Polyligne', drawingFinish:'Terminer la polyligne', drawingColor:'Couleur', drawingWidth:'Épaisseur', drawingStyle:'Type de ligne', drawingSolid:'Continue', drawingDashed:'Tiretée', drawingDashDot:'Tiret-point', drawingLongShort:'Long-court', drawingLayer:'Unité', drawingNewLayer:'Nouvelle unité', drawingRenameLayer:'Renommer l’unité', drawingDeleteLayer:'Supprimer l’unité', drawingShowLayer:'Afficher l’unité', drawingShowAll:'Afficher le dessin', drawingIncludeExport:'Inclure le dessin dans l’export image', drawingDeleteSelected:'Supprimer la sélection', drawingExportSvg:'Enregistrer le dessin (SVG)', drawingNone:'Aucune feuille de dessin créée.', drawingActiveStatus:'Feuille active – la navigation reste disponible.', drawingClosedStatus:'La feuille est enregistrée. Ouvrez-la à nouveau pour continuer.', drawingCleared:'Dessin effacé.', drawingLayerPrompt:'Identifiant de la nouvelle unité (p. ex. A34, L98 ou SU45) :', drawingRenameLayerPrompt:'Nouvel identifiant de l’unité :', drawingLayerDefault:'Unité', drawingDeleteLayerConfirm:'Supprimer cette unité et tous les traits qui lui sont liés ?', drawingClearConfirm:'Effacer tout le dessin ?', drawingNoObjects:'Aucun vecteur à exporter.', drawingSvgExported:'Dessin SVG enregistré.', drawingNeedOrtho:'La feuille utilise la vue orthographique.', drawingPan:'Panoramique', drawingAddNode:'Ajouter un nœud', drawingRemoveNode:'Supprimer un nœud', drawingZoomIn:'Zoom avant', drawingZoomOut:'Zoom arrière', drawingZoomReset:'Réinitialiser le zoom', drawingNodeRemoved:'Nœud supprimé.', drawingNodeAdded:'Nœud ajouté.', drawingNodeMin:'Une ligne doit comporter au moins deux nœuds.', drawingCut:'✂ Couper la ligne', drawingCutDone:'La ligne a été divisée en deux.', drawingCutNeedLine:'Touchez la ligne à l’endroit de la coupe.', cleanExportMarkers:'Masquer les repères de travail dans l’export image', exportGlb:'Exporter le modèle 3D assemblé (GLB)', modelExportReady:'Le modèle 3D est prêt', modelExportText:'Enregistrer le modèle visible assemblé au format GLB.', modelExportSave:'Enregistrer GLB', modelExportNoModels:'Aucun modèle visible à exporter.', modelExportPreparing:'Préparation du modèle 3D assemblé…', modelExportSaved:'Modèle 3D assemblé enregistré.', sidebarHide:'Masquer le panneau d’outils', sidebarShow:'Afficher le panneau d’outils',
 
   exportPurpose:'Usage', exportSize:'Taille', exportPurposeScreen:'Écran / PowerPoint', exportPurposeBook:'Livre / article', exportPurposePoster:'Affiche', exportPurposeExhibition:'Exposition', exportPurposeCustom:'Personnalisé', exportSuitScreen:'Adapté à l’écran et aux présentations.', exportSuitBook:'Adapté aux livres et articles.', exportSuitPoster:'Adapté à l’impression d’affiches.', exportSuitExhibition:'Adapté aux grands visuels d’exposition.', exportSuitCustom:'Export personnalisé.', advancedExport:'Avancé…', saveImage:'Enregistrer l’image', exportSafeNote:'Les grandes images sont automatiquement adaptées à la limite sûre de l’appareil. Les textures originales sont conservées.',
 
@@ -451,7 +451,7 @@ function applyLanguage(lang){
   if(!measurePoints.length)setText('measureResult','noMeasurement');
 
   setText('drawingHeading','drawingSheet');setText('drawingHelp','drawingHelp');setText('drawingClearButton','drawingClear');
-  setText('drawingSelectButton','drawingSelect');setText('drawingPanButton','drawingPan');setText('drawingFreehandButton','drawingFreehand');setText('drawingLineButton','drawingLine');setText('drawingPolylineButton','drawingPolyline');setText('drawingAddNodeButton','drawingAddNode');setText('drawingRemoveNodeButton','drawingRemoveNode');setText('drawingFinishPolylineButton','drawingFinish');
+  setText('drawingSelectButton','drawingSelect');setText('drawingPanButton','drawingPan');setText('drawingFreehandButton','drawingFreehand');setText('drawingLineButton','drawingLine');setText('drawingPolylineButton','drawingPolyline');setText('drawingAddNodeButton','drawingAddNode');setText('drawingRemoveNodeButton','drawingRemoveNode');setText('drawingCutButton','drawingCut');setText('drawingFinishPolylineButton','drawingFinish');
   $('drawingZoomOutButton').title=tr('drawingZoomOut');$('drawingZoomInButton').title=tr('drawingZoomIn');$('drawingZoomResetButton').title=tr('drawingZoomReset');
   setText('drawingColorLabel','drawingColor');setText('drawingWidthLabel','drawingWidth');setText('drawingStyleLabel','drawingStyle');setText('drawingLayerLabel','drawingLayer');
   setText('drawingShowLayerText','drawingShowLayer');setText('drawingShowAllText','drawingShowAll');setText('drawingIncludeExportText','drawingIncludeExport');setText('drawingDeleteSelectedButton','drawingDeleteSelected');setText('drawingExportSvgButton','drawingExportSvg');
@@ -470,7 +470,7 @@ function applyLanguage(lang){
   setOption('exportRatio','screen','screenFormat');setOption('exportRatio','1.41421356237','aLandscape');setOption('exportRatio','0.70710678118','aPortrait');setOption('exportRatio','custom','customFormat');
   setOption('exportPreset','screen','screen');setOption('exportPreset','3000','px3000');setOption('exportPreset','6000','px6000');setOption('exportPreset','custom','custom');
   $('toggleExportFrameButton').textContent=exportFrameVisible?tr('hideExportFrame'):tr('showExportFrame');
-  setText('fitToExportFrameButton','fitExport');setText('exportPngButton','savePng');setText('shareImageButton','sharePhotos');
+  setText('fitToExportFrameButton','fitExport');setText('exportPngButton','savePng');setText('shareImageButton','sharePhotos');setText('exportGlbButton','exportGlb');setText('cleanExportMarkersText','cleanExportMarkers');
 
   setText('annotationsHeading','annotations');setCheckText('showScaleBar','showScale');setLabelPrefix('scaleBarLength','length');setLabelPrefix('scaleBarPosition','position');
   setOption('scaleBarLength','auto','automatic');
@@ -482,7 +482,7 @@ function applyLanguage(lang){
   setText('unwrapHeading','unwrapSurface');setText('unwrapHelp','unwrapHelp');setLabelPrefix('unwrapAxis','unwrapAxis');setLabelPrefix('unwrapWidth','unwrapWidth');setText('unwrapStartButton','unwrapStart');setText('unwrapEndButton','unwrapEnd');
   setText('unwrapSelectAreaButton','unwrapSelectArea');setText('unwrapClearAreaButton','unwrapClearArea');setText('unwrapPreviewButton','unwrapPreview');setText('unwrapFullButton','unwrapFull');setText('unwrapReverseButton','unwrapReverse');setText('unwrapExportButton','unwrapExport');updateUnwrapStatus();
   setText('unwrapPreviewHeading','unwrapPreviewHeading');setText('unwrapPreviewHelp','unwrapPreviewHelp');setText('unwrapExportBandButton','unwrapExportBand');setText('unwrapExportFullButton','unwrapExportFull');
-  setText('imageReadyHeading','imageReady');setText('imageReadyText','imageReadyText');
+  setText('imageReadyHeading','imageReady');setText('imageReadyText','imageReadyText');setText('modelExportHeading','modelExportReady');setText('modelExportText','modelExportText');setText('savePreparedGlbButton','modelExportSave');setText('cancelPreparedGlbButton','imageClose');
   setText('savePreparedPngButton','imageSavePng');setText('sharePreparedImageButton','imageSharePrepared');setText('cancelPreparedImageButton','imageClose');
   setText('friezeReadyHeading','friezeReady');setText('friezeReadyText','friezeReadyText');
   setText('saveFriezePngButton','friezeSavePng');setText('shareFriezeButton','friezeShare');setText('cancelFriezeSaveButton','friezeClose');
@@ -1812,6 +1812,7 @@ function renderDrawingOverlay(){
   overlay.classList.toggle('pan-tool',drawingTool==='pan');
   overlay.classList.toggle('add-node-tool',drawingTool==='addnode');
   overlay.classList.toggle('remove-node-tool',drawingTool==='removenode');
+  overlay.classList.toggle('cut-tool',drawingTool==='cut');
   const objects=$('drawingObjects'),preview=$('drawingPreview'),selection=$('drawingSelection');objects.innerHTML='';preview.innerHTML='';selection.innerHTML='';
   if(!(drawingActive||persistentVisible)){updateDrawingZoomUi();return}
   if(drawingVisible){
@@ -1820,7 +1821,7 @@ function renderDrawingOverlay(){
     }
     if(drawingActive&&drawingDraft)drawingSvgPath(drawingDraft,preview,false);
   }
-  const sel=drawingActive&&drawingVisible?drawingObjects.find(o=>o.id===drawingSelectedId):null;if(sel&&drawingLayer(sel.layerId)?.visible!==false&&['select','addnode','removenode'].includes(drawingTool)){
+  const sel=drawingActive&&drawingVisible?drawingObjects.find(o=>o.id===drawingSelectedId):null;if(sel&&drawingLayer(sel.layerId)?.visible!==false&&['select','addnode','removenode','cut'].includes(drawingTool)){
     const ns='http://www.w3.org/2000/svg';
     for(let i=0;i<sel.points.length;i++){
       const q=drawingScreenPoint(sel.points[i]),c=document.createElementNS(ns,'circle');
@@ -1835,7 +1836,7 @@ function updateDrawingUi(){
   const section=$('drawingSection');if(!section)return;
   $('drawingToggleButton').textContent=drawingActive?tr('drawingClose'):tr('drawingStart');
   section.classList.toggle('drawing-active',drawingActive);
-  for(const [id,tool] of [['drawingSelectButton','select'],['drawingPanButton','pan'],['drawingFreehandButton','freehand'],['drawingLineButton','line'],['drawingPolylineButton','polyline'],['drawingAddNodeButton','addnode'],['drawingRemoveNodeButton','removenode']])$(id)?.classList.toggle('active',drawingTool===tool);
+  for(const [id,tool] of [['drawingSelectButton','select'],['drawingPanButton','pan'],['drawingFreehandButton','freehand'],['drawingLineButton','line'],['drawingPolylineButton','polyline'],['drawingAddNodeButton','addnode'],['drawingRemoveNodeButton','removenode'],['drawingCutButton','cut']])$(id)?.classList.toggle('active',drawingTool===tool);
   $('drawingFinishPolylineButton').disabled=!(drawingDraft?.type==='polyline'&&drawingDraft.points.length>=2);
   $('drawingDeleteSelectedButton').disabled=!drawingSelectedId;
   const status=$('drawingStatus');if(status)status.textContent=drawingActive?tr('drawingActiveStatus'):(drawingSheetView?tr('drawingClosedStatus'):tr('drawingNone'));
@@ -1895,9 +1896,15 @@ function drawingSegmentHitTest(e){
 function drawingHitTest(e){return drawingSegmentHitTest(e)?.object||null}
 function drawingNodeHitTest(e,objectOnly=null){
   const r=renderer.domElement.getBoundingClientRect(),p={x:e.clientX-r.left,y:e.clientY-r.top};let best=null,bestD=Infinity;
-  for(let oi=drawingObjects.length-1;oi>=0;oi--){
-    const o=drawingObjects[oi];if(objectOnly&&o.id!==objectOnly)continue;const layer=drawingLayer(o.layerId);if(layer&&layer.visible===false)continue;
-    for(let i=0;i<o.points.length;i++){const q=drawingScreenPoint(o.points[i]),d=Math.hypot(p.x-q.x,p.y-q.y);if(d<=10&&d<bestD){best={object:o,pointIndex:i,distance:d};bestD=d}}
+  const limit=e?.pointerType==='touch'?24:16;
+  const preferred=objectOnly||drawingSelectedId||null;
+  const passes=preferred?[preferred,null]:[null];
+  for(const pass of passes){
+    for(let oi=drawingObjects.length-1;oi>=0;oi--){
+      const o=drawingObjects[oi];if(pass&&o.id!==pass)continue;if(!pass&&preferred&&o.id===preferred)continue;const layer=drawingLayer(o.layerId);if(layer&&layer.visible===false)continue;
+      for(let i=0;i<o.points.length;i++){const q=drawingScreenPoint(o.points[i]),d=Math.hypot(p.x-q.x,p.y-q.y);if(d<=limit&&d<bestD){best={object:o,pointIndex:i,distance:d};bestD=d}}
+    }
+    if(best)return best;
   }
   return best;
 }
@@ -1911,6 +1918,27 @@ function removeDrawingNodeAtEvent(e){
   const hit=drawingNodeHitTest(e);if(!hit)return;const o=hit.object;if(o.points.length<=2){drawingSelectedId=o.id;drawingSelectedPointIndex=hit.pointIndex;renderDrawingOverlay();setStatus(tr('drawingNodeMin'));return}
   const before=drawingClonePoints(o.points),removedIndex=hit.pointIndex;o.points.splice(removedIndex,1);drawingSelectedId=o.id;drawingSelectedPointIndex=Math.min(removedIndex,o.points.length-1);const after=drawingClonePoints(o.points),id=o.id;
   pushHistory({label:'fjern knudepunkt',undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);drawingSelectedId=id;drawingSelectedPointIndex=removedIndex;renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);drawingSelectedId=id;drawingSelectedPointIndex=Math.min(removedIndex,after.length-1);renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingNodeRemoved'));
+}
+
+function removeSelectedDrawingNode(){
+  const o=drawingObjects.find(x=>x.id===drawingSelectedId);if(!o||!Number.isInteger(drawingSelectedPointIndex))return false;
+  if(o.points.length<=2){setStatus(tr('drawingNodeMin'));return true}
+  const before=drawingClonePoints(o.points),idx=drawingSelectedPointIndex,id=o.id;o.points.splice(idx,1);const after=drawingClonePoints(o.points);drawingSelectedPointIndex=Math.min(idx,o.points.length-1);
+  pushHistory({label:'fjern knudepunkt',undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);drawingSelectedId=id;drawingSelectedPointIndex=idx;renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);drawingSelectedId=id;drawingSelectedPointIndex=Math.min(idx,after.length-1);renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingNodeRemoved'));return true;
+}
+function activateRemoveNodeTool(){if(removeSelectedDrawingNode()){updateDrawingUi();return}setDrawingTool('removenode')}
+function cutDrawingAtEvent(e){
+  const hit=drawingSegmentHitTest(e);if(!hit){setStatus(tr('drawingCutNeedLine'));return}
+  const original=hit.object,index=drawingObjects.findIndex(o=>o.id===original.id);if(index<0||original.points.length<2)return;
+  const a=original.points[hit.segmentIndex],b=original.points[hit.segmentIndex+1],t=Math.max(.001,Math.min(.999,hit.t));
+  const split={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t};
+  const left=original.points.slice(0,hit.segmentIndex+1).map(p=>({...p}));left.push({...split});
+  const right=[{...split},...original.points.slice(hit.segmentIndex+1).map(p=>({...p}))];
+  if(left.length<2||right.length<2)return;
+  const before=drawingObjectClone(original),leftObj={...drawingObjectClone(original),id:`draw-${drawingNextObject++}`,points:left},rightObj={...drawingObjectClone(original),id:`draw-${drawingNextObject++}`,points:right};
+  drawingObjects.splice(index,1,leftObj,rightObj);drawingSelectedId=rightObj.id;drawingSelectedPointIndex=0;
+  pushHistory({label:'klip vektor',undo:()=>{const li=drawingObjects.findIndex(o=>o.id===leftObj.id),ri=drawingObjects.findIndex(o=>o.id===rightObj.id);const at=li>=0?li:(ri>=0?ri:index);drawingObjects=drawingObjects.filter(o=>o.id!==leftObj.id&&o.id!==rightObj.id);drawingObjects.splice(Math.min(at,drawingObjects.length),0,drawingObjectClone(before));drawingSelectedId=before.id;drawingSelectedPointIndex=null;renderDrawingOverlay()},redo:()=>{const oi=drawingObjects.findIndex(o=>o.id===before.id);if(oi>=0)drawingObjects.splice(oi,1,drawingObjectClone(leftObj),drawingObjectClone(rightObj));drawingSelectedId=rightObj.id;drawingSelectedPointIndex=0;renderDrawingOverlay()}});
+  renderDrawingOverlay();setStatus(tr('drawingCutDone'));
 }
 function drawingPointerDown(e){
   if(!drawingActive)return;e.preventDefault();e.stopPropagation();
@@ -1927,6 +1955,7 @@ function drawingPointerDown(e){
   const world=drawingWorldPointFromEvent(e);if(!world)return;
   if(drawingTool==='addnode'){addDrawingNodeAtEvent(e);return}
   if(drawingTool==='removenode'){removeDrawingNodeAtEvent(e);return}
+  if(drawingTool==='cut'){cutDrawingAtEvent(e);return}
   drawingPointerId=e.pointerId;$('drawingOverlay').setPointerCapture?.(e.pointerId);
   if(drawingTool==='pan'){drawingDragMode='pan';drawingPanLast=world.clone();return}
   if(drawingTool==='select'){
@@ -2461,6 +2490,25 @@ function updateEffectiveExportSize(){
   el.textContent=tr('effectiveExport',{w:s.w.toLocaleString(),h:s.h.toLocaleString()});
 }
 
+function captureExportMarkerState(){
+  return {
+    transformVisible:transform.visible,gridVisible:grid.visible,axesVisible:axesHelper.visible,
+    measureLineVisible:measureLine?measureLine.visible:null,
+    measureDotsVisible:measureDots.map(d=>d.visible)
+  };
+}
+function setCleanExportMarkersHidden(hidden){
+  if(!hidden)return;
+  transform.visible=false;grid.visible=false;axesHelper.visible=false;
+  if(measureLine)measureLine.visible=false;
+  measureDots.forEach(d=>d.visible=false);
+}
+function restoreExportMarkerState(state){
+  if(!state)return;transform.visible=state.transformVisible;grid.visible=state.gridVisible;axesHelper.visible=state.axesVisible;
+  if(measureLine&&state.measureLineVisible!==null)measureLine.visible=state.measureLineVisible;
+  measureDots.forEach((d,i)=>{if(i<state.measureDotsVisible.length)d.visible=state.measureDotsVisible[i]});
+}
+
 async function renderExportBlob(){
   const resolved=resolvedExportSize();
   const outW=resolved.w,outH=resolved.h;
@@ -2483,7 +2531,9 @@ async function renderExportBlob(){
     zoom:orthographicCamera.zoom
   };
   const __underlayWasVisible=underlay?underlay.visible:null;
+  const __markerState=captureExportMarkerState();
   if(underlay&&underlay.userData.includeInExport===false)underlay.visible=false;
+  setCleanExportMarkersHidden($('cleanExportMarkers')?.checked!==false);
 
   try{
     renderer.setPixelRatio(1);
@@ -2577,6 +2627,7 @@ async function renderExportBlob(){
     orthographicCamera.updateProjectionMatrix();
 
     if(underlay&&__underlayWasVisible!==null)underlay.visible=__underlayWasVisible;
+    restoreExportMarkerState(__markerState);
     orbit.update();
   }
 }
@@ -2682,7 +2733,8 @@ function currentProjectSettings(){
       northPosition:$('northPosition').value,
       purpose:$('exportPurpose')?.value||'custom',
       purposePreset:$('exportPurposePreset')?.value||'custom',
-      purposeDpi:$('exportPurposeDpi')?.value||'150'
+      purposeDpi:$('exportPurposeDpi')?.value||'150',
+      cleanMarkers:$('cleanExportMarkers')?.checked!==false
     },
     measurement:measurePoints.map(p=>p.toArray()),
     drawing:drawingProjectData(),
@@ -2718,6 +2770,31 @@ function exportRootAsGlb(root){
       {binary:true,onlyVisible:false}
     );
   });
+}
+
+function exportCombinedVisibleGlb(){
+  const visible=models.filter(m=>m.root.visible);if(!visible.length)return Promise.reject(new Error(tr('modelExportNoModels')));
+  const group=new THREE.Group();group.name='ArchaeoPlan combined model';
+  for(const m of visible){const clone=m.root.clone(true);clone.name=m.name||clone.name;group.add(clone)}
+  group.updateMatrixWorld(true);
+  return new Promise((resolve,reject)=>{const exporter=new GLTFExporter();exporter.parse(group,result=>resolve(result),error=>reject(error),{binary:true,onlyVisible:true})});
+}
+async function prepareCombinedGlbExport(){
+  const btn=$('exportGlbButton');if(btn)btn.disabled=true;try{
+    if(!models.some(m=>m.root.visible)){setStatus(tr('modelExportNoModels'));return}
+    setStatus(tr('modelExportPreparing'));await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+    const glb=await exportCombinedVisibleGlb();if(!(glb instanceof ArrayBuffer))throw new Error('GLB export failed.');
+    preparedModelExport={blob:new Blob([glb],{type:'model/gltf-binary'}),filename:`ArchaeoPlan-samlet-${new Date().toISOString().slice(0,10)}.glb`};
+    if(modelExportDialog?.showModal)modelExportDialog.showModal();setStatus(tr('modelExportReady'));
+  }catch(err){console.error(err);setStatus(err?.message||String(err))}finally{if(btn)btn.disabled=false}
+}
+async function savePreparedGlb(){
+  if(!preparedModelExport)return;const {blob,filename}=preparedModelExport;
+  try{
+    if(window.showSaveFilePicker){const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'GLB 3D model',accept:{'model/gltf-binary':['.glb']}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close()}
+    else{const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
+    modelExportDialog?.close();preparedModelExport=null;setStatus(tr('modelExportSaved'));
+  }catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||String(err))}
 }
 async function saveProject(){
   if(!models.length&&!underlay){
@@ -2903,6 +2980,7 @@ async function restoreProjectSettings(settings){
   $('showNorthArrow').checked=!!ex.showNorthArrow;
   if(ex.northAngle!=null)$('northAngle').value=ex.northAngle;
   if(ex.northPosition!=null)$('northPosition').value=ex.northPosition;
+  if($('cleanExportMarkers'))$('cleanExportMarkers').checked=ex.cleanMarkers!==false;
   if(ex.purpose!=null&&$('exportPurpose'))$('exportPurpose').value=ex.purpose;
   if(ex.purposeDpi!=null&&$('exportPurposeDpi'))$('exportPurposeDpi').value=ex.purposeDpi;
   if($('exportPurpose'))updatePurposePresets();
@@ -3040,7 +3118,8 @@ $('drawingFreehandButton').onclick=()=>setDrawingTool('freehand');
 $('drawingLineButton').onclick=()=>setDrawingTool('line');
 $('drawingPolylineButton').onclick=()=>setDrawingTool('polyline');
 $('drawingAddNodeButton').onclick=()=>setDrawingTool('addnode');
-$('drawingRemoveNodeButton').onclick=()=>setDrawingTool('removenode');
+$('drawingRemoveNodeButton').onclick=activateRemoveNodeTool;
+$('drawingCutButton').onclick=()=>setDrawingTool('cut');
 $('drawingZoomOutButton').onclick=()=>drawingZoom(1/1.25);
 $('drawingZoomInButton').onclick=()=>drawingZoom(1.25);
 $('drawingZoomResetButton').onclick=resetDrawingZoom;
@@ -3102,6 +3181,9 @@ $('sharePreparedImageButton').onclick=sharePreparedImage;
 $('cancelPreparedImageButton').onclick=()=>{imageSaveDialog.close();preparedImage=null;};
 $('exportPngButton').onclick=savePng;
 $('shareImageButton').onclick=shareImage;
+$('exportGlbButton').onclick=prepareCombinedGlbExport;
+$('savePreparedGlbButton').onclick=savePreparedGlb;
+$('cancelPreparedGlbButton').onclick=()=>{modelExportDialog?.close();preparedModelExport=null;};
 
 $('exportPurpose').onchange=updatePurposePresets;
 $('exportPurposePreset').onchange=updatePurposeExport;
@@ -3138,6 +3220,7 @@ window.addEventListener('pointerup',globalMousePointerUp,{passive:false,capture:
 window.addEventListener('pointercancel',globalMousePointerUp,{passive:false,capture:true});
 viewport.addEventListener('wheel',globalMouseWheel,{passive:false,capture:true});
 viewport.addEventListener('contextmenu',e=>{if(e.button===2)e.preventDefault()});
+window.addEventListener('keydown',e=>{const tag=document.activeElement?.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;if((e.key==='Delete'||e.key==='Backspace')&&drawingActive&&drawingSelectedId){e.preventDefault();deleteSelectedDrawing()}});
 
 cropInputLayer.addEventListener('pointerdown',down,{passive:false,capture:true});
 cropInputLayer.addEventListener('pointermove',move,{passive:false,capture:true});
