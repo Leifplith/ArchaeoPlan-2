@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#20262d">
-  <title>ArchaeoPlan v0.2.44</title>
-  <link rel="stylesheet" href="style.css?v=0.2.44">
+  <title>ArchaeoPlan v0.2.45</title>
+  <link rel="stylesheet" href="style.css?v=0.2.45">
 </head>
 <body>
 <div id="app">
@@ -13,7 +13,7 @@
     <div class="brand">
       <button id="sidebarToggleButton" class="sidebar-toggle" type="button" aria-expanded="true" title="Skjul værktøjspanel">◀</button>
       <h1>ArchaeoPlan</h1>
-      <span class="version">v0.2.44</span>
+      <span class="version">v0.2.45</span>
     </div>
     <div class="header-actions">
 
@@ -43,18 +43,34 @@
         <button id="perspectiveButton" class="active">Perspektiv</button>
         <button id="orthographicButton">Ortografisk</button>
       </div>
-      <div class="button-grid three compact">
+      <div class="view-button-grid compact">
         <button data-view="top">Top</button>
         <button data-view="front">Front</button>
         <button data-view="right">Højre</button>
         <button data-view="bottom">Bund</button>
         <button data-view="back">Bag</button>
         <button data-view="left">Venstre</button>
+        <button id="sectionViewButton" type="button">Snit</button>
       </div>
-      <label class="check-row">
-        <input id="gridToggle" type="checkbox" checked>
-        Vis gitter
-      </label>
+      <label class="check-row"><input id="gridToggle" type="checkbox" checked> Vis gitter</label>
+      <label class="check-row"><input id="navIndicatorToggle" type="checkbox" checked> <span id="navIndicatorText">Vis navigationsindikator</span></label>
+      <hr class="section-rule">
+      <h3 id="selectedModelHeading">Valgt model</h3>
+      <div class="field-grid three">
+        <label>X<input id="posX" type="number" step="0.01"></label>
+        <label>Y<input id="posY" type="number" step="0.01"></label>
+        <label>Z<input id="posZ" type="number" step="0.01"></label>
+      </div>
+      <div class="field-grid three">
+        <label>Rot. X°<input id="rotX" type="number" step="0.1"></label>
+        <label>Rot. Y°<input id="rotY" type="number" step="0.1"></label>
+        <label>Rot. Z°<input id="rotZ" type="number" step="0.1"></label>
+      </div>
+      <div class="button-grid three compact">
+        <button id="translateButton" class="active">Flyt</button>
+        <button id="rotateButton">Drej</button>
+        <button id="lockButton">Lås</button>
+      </div>
     </section>
 
 
@@ -83,25 +99,6 @@
       <h2 id="modelsHeading">Modeller</h2>
       <div id="modelList" class="model-list">
         <p class="muted">Ingen modeller åbnet.</p>
-      </div>
-    </section>
-
-    <section>
-      <h2 id="selectedModelHeading">Valgt model</h2>
-      <div class="field-grid three">
-        <label>X<input id="posX" type="number" step="0.01"></label>
-        <label>Y<input id="posY" type="number" step="0.01"></label>
-        <label>Z<input id="posZ" type="number" step="0.01"></label>
-      </div>
-      <div class="field-grid three">
-        <label>Rot. X°<input id="rotX" type="number" step="0.1"></label>
-        <label>Rot. Y°<input id="rotY" type="number" step="0.1"></label>
-        <label>Rot. Z°<input id="rotZ" type="number" step="0.1"></label>
-      </div>
-      <div class="button-grid three compact">
-        <button id="translateButton" class="active">Flyt</button>
-        <button id="rotateButton">Drej</button>
-        <button id="lockButton">Lås</button>
       </div>
     </section>
 
@@ -181,12 +178,16 @@
         </select>
       </label>
       <div class="drawing-layer-row">
-        <label><span id="drawingLayerLabel">Enhed</span><select id="drawingLayerSelect"></select></label>
-        <button id="drawingNewLayerButton" title="Ny enhed">+</button>
-        <button id="drawingRenameLayerButton" title="Omdøb enhed">✎</button>
-        <button id="drawingDeleteLayerButton" title="Slet enhed">−</button>
+        <label><span id="drawingLayerLabel">Lagbeskrivelse</span><select id="drawingLayerSelect"></select></label>
+        <button id="drawingNewLayerButton" title="Ny lagbeskrivelse">+</button>
+        <button id="drawingRenameLayerButton" title="Redigér lagbeskrivelse">✎</button>
+        <button id="drawingDeleteLayerButton" title="Slet lagbeskrivelse">−</button>
       </div>
-      <label class="check-row"><input id="drawingLayerVisible" type="checkbox" checked> <span id="drawingShowLayerText">Vis enhed</span></label>
+      <div class="button-grid two">
+        <button id="drawingPlaceLabelButton">Placér lagtekst</button>
+        <button id="drawingClearLabelButton">Fjern lagtekst</button>
+      </div>
+      <label class="check-row"><input id="drawingLayerVisible" type="checkbox" checked> <span id="drawingShowLayerText">Vis lag</span></label>
       <label class="check-row"><input id="drawingVisible" type="checkbox" checked> <span id="drawingShowAllText">Vis tegning</span></label>
       <label class="check-row"><input id="drawingIncludeExport" type="checkbox" checked> <span id="drawingIncludeExportText">Medtag tegning i billedeksport</span></label>
       <div class="button-grid two">
@@ -199,100 +200,45 @@
     
     <section>
       <h2 id="exportHeading">Eksport</h2>
+      <div class="export-tabs" role="tablist" aria-label="Eksporttype">
+        <button id="export2DTab" class="active" type="button" role="tab" aria-selected="true">2D eksport</button>
+        <button id="export3DTab" type="button" role="tab" aria-selected="false">3D eksport</button>
+      </div>
 
-      <label>Formål
-        <select id="exportPurpose">
-          <option value="screen">Skærm / PowerPoint</option>
-          <option value="book">Bog / artikel</option>
-          <option value="poster">Plakat</option>
-          <option value="exhibition">Udstilling</option>
-          <option value="custom">Brugerdefineret</option>
-        </select>
-      </label>
-
-      <div id="exportPresetRow" class="field-grid two">
-        <label>Størrelse
-          <select id="exportPurposePreset"></select>
-        </label>
-        <label id="exportDpiWrap">Opløsning
-          <select id="exportPurposeDpi">
-            <option value="72">72 dpi</option>
-            <option value="96">96 dpi</option>
-            <option value="150">150 dpi</option>
-            <option value="200">200 dpi</option>
-            <option value="300">300 dpi</option>
+      <div id="export2DPanel" class="export-tab-panel">
+        <label>Formål
+          <select id="exportPurpose">
+            <option value="screen">Skærm / PowerPoint</option><option value="book">Bog / artikel</option><option value="poster">Plakat</option><option value="exhibition">Udstilling</option><option value="custom">Brugerdefineret</option>
           </select>
         </label>
-      </div>
-
-      <p id="effectiveExportSize" class="muted small">Faktisk eksport: 3840 × 2160 px</p>
-      <p id="exportSuitability" class="muted small">Egnet til skærm og præsentation.</p>
-
-      <details id="advancedExportDetails">
-        <summary id="advancedExportSummary">Avanceret…</summary>
-
-        <div class="field-grid two">
-          <label>Bredde<input id="exportWidth" type="number" value="3840" min="200" max="50000"></label>
-          <label>Højde<input id="exportHeight" type="number" value="2160" min="200" max="50000"></label>
+        <div id="exportPresetRow" class="field-grid two">
+          <label>Størrelse<select id="exportPurposePreset"></select></label>
+          <label id="exportDpiWrap">Opløsning<select id="exportPurposeDpi"><option value="72">72 dpi</option><option value="96">96 dpi</option><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option></select></label>
         </div>
-
-        <div class="field-grid two">
-          <label>Format
-            <select id="exportRatio">
-              <option value="screen">Skærmformat</option>
-              <option value="1.5">3:2</option>
-              <option value="1.3333333333">4:3</option>
-              <option value="1">1:1</option>
-              <option value="1.41421356237">A-format liggende</option>
-              <option value="0.70710678118">A-format stående</option>
-              <option value="custom">Frit format</option>
-            </select>
-          </label>
-          <label>Pixelpreset
-            <select id="exportPreset">
-              <option value="screen">Skærm</option>
-              <option value="3000">3000 px bredde</option>
-              <option value="6000">6000 px bredde</option>
-              <option value="custom">Brugerdefineret</option>
-            </select>
-          </label>
-        </div>
-      </details>
-
-      <div class="button-grid two">
-        <button id="toggleExportFrameButton">Vis eksport-ramme</button>
-        <button id="fitToExportFrameButton">Tilpas model til ramme</button>
+        <p id="effectiveExportSize" class="muted small">Faktisk eksport: 3840 × 2160 px</p>
+        <p id="exportSuitability" class="muted small">Egnet til skærm og præsentation.</p>
+        <details id="advancedExportDetails"><summary id="advancedExportSummary">Avanceret…</summary>
+          <div class="field-grid two"><label>Bredde<input id="exportWidth" type="number" value="3840" min="200" max="50000"></label><label>Højde<input id="exportHeight" type="number" value="2160" min="200" max="50000"></label></div>
+          <div class="field-grid two"><label>Format<select id="exportRatio"><option value="screen">Skærmformat</option><option value="1.5">3:2</option><option value="1.3333333333">4:3</option><option value="1">1:1</option><option value="1.41421356237">A-format liggende</option><option value="0.70710678118">A-format stående</option><option value="custom">Frit format</option></select></label><label>Pixelpreset<select id="exportPreset"><option value="screen">Skærm</option><option value="3000">3000 px bredde</option><option value="6000">6000 px bredde</option><option value="custom">Brugerdefineret</option></select></label></div>
+        </details>
+        <div class="button-grid two"><button id="toggleExportFrameButton">Vis eksport-ramme</button><button id="fitToExportFrameButton">Tilpas model til ramme</button></div>
+        <div class="button-grid two"><button id="exportPngButton" class="primary">Gem billede</button><button id="shareImageButton">Del / Gem til Fotos</button></div>
+        <label class="check-row"><input id="cleanExportMarkers" type="checkbox" checked> <span id="cleanExportMarkersText">Skjul arbejdsmarkører i billedeksport</span></label>
+        <hr class="section-rule">
+        <h3 id="annotationsHeading">Eksportmarkeringer</h3>
+        <label class="check-row"><input id="showScaleBar" type="checkbox"> Vis målestok</label>
+        <div class="field-grid two"><label>Længde<select id="scaleBarLength"><option value="auto">Automatisk</option><option value="0.1">10 cm</option><option value="0.2">20 cm</option><option value="0.5">50 cm</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option></select></label><label>Placering<select id="scaleBarPosition"><option value="bottom-left">Nederst venstre</option><option value="bottom-right">Nederst højre</option><option value="top-left">Øverst venstre</option><option value="top-right">Øverst højre</option></select></label></div>
+        <label class="check-row"><input id="showNorthArrow" type="checkbox"> Vis nordpil</label>
+        <div class="field-grid two"><label>Rotation °<input id="northAngle" type="number" value="0" step="1"></label><label>Placering<select id="northPosition"><option value="top-right">Øverst højre</option><option value="top-left">Øverst venstre</option><option value="bottom-right">Nederst højre</option><option value="bottom-left">Nederst venstre</option></select></label></div>
+        <p id="scaleNorthNote" class="muted small">Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.</p>
+        <p id="exportNote" class="muted small">Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.</p>
       </div>
 
-      <button id="exportPngButton" class="primary">Gem billede</button>
-      <button id="shareImageButton">Del / Gem til Fotos</button>
-      <button id="exportGlbButton">Eksportér samlet 3D-model (GLB)</button>
-      <label class="check-row"><input id="cleanExportMarkers" type="checkbox" checked> <span id="cleanExportMarkersText">Skjul arbejdsmarkører i billedeksport</span></label>
-
-      <hr class="section-rule">
-      <h3 id="annotationsHeading">Eksportmarkeringer</h3>
-      <label class="check-row"><input id="showScaleBar" type="checkbox"> Vis målestok</label>
-      <div class="field-grid two">
-        <label>Længde
-          <select id="scaleBarLength">
-            <option value="auto">Automatisk</option><option value="0.1">10 cm</option><option value="0.2">20 cm</option><option value="0.5">50 cm</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option>
-          </select>
-        </label>
-        <label>Placering
-          <select id="scaleBarPosition"><option value="bottom-left">Nederst venstre</option><option value="bottom-right">Nederst højre</option><option value="top-left">Øverst venstre</option><option value="top-right">Øverst højre</option></select>
-        </label>
+      <div id="export3DPanel" class="export-tab-panel" hidden>
+        <p class="muted small">Eksportér de synlige 3D-modeller samlet med deres nuværende placering, rotation, skala og teksturer.</p>
+        <button id="exportGlbButton" class="primary wide-button">Eksportér samlet 3D-model (GLB)</button>
       </div>
-      <label class="check-row"><input id="showNorthArrow" type="checkbox"> Vis nordpil</label>
-      <div class="field-grid two">
-        <label>Rotation °<input id="northAngle" type="number" value="0" step="1"></label>
-        <label>Placering
-          <select id="northPosition"><option value="top-right">Øverst højre</option><option value="top-left">Øverst venstre</option><option value="bottom-right">Nederst højre</option><option value="bottom-left">Nederst venstre</option></select>
-        </label>
-      </div>
-      <p id="scaleNorthNote" class="muted small">Målestokken er metrisk korrekt i ortografisk visning. Nordpilen drejes manuelt indtil videre.</p>
-      <p id="exportNote" class="muted small">Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.</p>
     </section>
-
 
     <section>
       <h2 id="unwrapHeading">Udfold overflade</h2>
@@ -322,6 +268,7 @@
       <p id="docsText">GLB- og OBJ-teksturer bevares. ArchaeoPlan ændrer ikke de originale teksturfiler.</p>
     </section>
   </aside>
+  <div id="sidebarResizeHandle" class="sidebar-resize-handle" title="Træk for at ændre bredden"></div>
 
   <main id="viewport">
     <div id="cropInputLayer" aria-hidden="true"></div>
@@ -342,7 +289,7 @@
       <strong id="dropStrong">Slip filer her</strong>
       <span id="dropText">GLB, GLTF, OBJ + MTL + teksturer eller PLY</span>
     </div>
-    <div id="status">ArchaeoPlan v0.2.44 klar.</div>
+    <div id="status">ArchaeoPlan v0.2.45 klar.</div>
   </main>
 </div>
 
@@ -354,7 +301,7 @@
   }
 }
 </script>
-<script type="module" src="app.js?v=0.2.44"></script>
+<script type="module" src="app.js?v=0.2.45"></script>
 
 
 <dialog id="projectPreparingDialog" class="project-save-dialog">

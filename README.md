@@ -1,4 +1,4 @@
-# ArchaeoPlan v0.2.12 clean
+# ArchaeoPlan v0.2.45
 
 Denne udgave er en oprydningsversion baseret direkte på den testede og fungerende v0.2.11.
 
@@ -338,3 +338,17 @@ Bemærk: Under en allerede påbegyndt skærmbaseret beskærings-/områdekontur l
 - Billedeksport kan automatisk skjule arbejdsmarkører som transform-gizmo, gitter, akser og målepunkter/-linjer; målestok og nordpil styres fortsat separat.
 - Ny eksport af alle synlige 3D-modeller samlet i én GLB med deres indbyrdes placering, rotation, skala og teksturer bevaret.
 - De nye handlinger understøtter undo/redo, hvor det er relevant.
+
+
+## v0.2.45 — UI-oprydning, lagbeskrivelser og snit
+- **Visning** og **Valgt model** er samlet i samme værktøjsgruppe.
+- Standardvisningsknapperne har ens størrelse, og **Snit** er tilføjet som ekstra visningsknap. Snit bruger et midlertidigt clipping-plan gennem den aktuelle visnings centrum og ændrer ikke modeldata.
+- **Vis navigationsindikator** slår akseindikatoren til/fra og gemmes i projektet.
+- Venstrepanelet kan trækkes bredere/smallere på PC; bredden huskes lokalt. Knapper ombrydes i stedet for at løbe ud af panelet.
+- **Eksport** er opdelt i underfanerne **2D eksport** og **3D eksport**.
+- Tegnearkets tidligere “Enhed” er ændret til **Lagbeskrivelse**. Beskrivelsen kan placeres som tekst på profil/plan.
+- Streger bevarer en stabil intern kobling til deres lagbeskrivelse, så stratigrafiske relationer/Harris-matrix kan tilføjes senere uden at ændre tegneformatet.
+- Lagtekst gemmes i `.archaeoplan`, vises sammen med laget og følger med i SVG- og billedeksport, når tegningen medtages.
+
+### Bemærkning om Snit
+Snit er i denne første version en enkel visningsfunktion: den skjuler midlertidigt geometrien på den ene side af et plan gennem det aktuelle visningscentrum. Modellen beskæres ikke permanent.

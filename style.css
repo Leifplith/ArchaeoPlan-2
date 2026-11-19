@@ -14,7 +14,7 @@ button.active,#freehandCropButton.active,#polygonCropButton.active,#startCropBut
 button.primary{background:var(--accent);color:white;border-color:var(--accent)}
 button:disabled{opacity:.45;cursor:default}
 #app{
-  height:100dvh;display:grid;grid-template-columns:300px 1fr;grid-template-rows:58px 1fr;
+  height:100dvh;display:grid;grid-template-columns:var(--sidebar-width,300px) 1fr;grid-template-rows:58px 1fr;
   grid-template-areas:"top top" "side view"
 }
 .topbar{grid-area:top;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#20262d;color:white;z-index:30}
@@ -246,3 +246,39 @@ select {
 
 /* v0.2.43 persistent drawing + global mouse navigation */
 #drawingOverlay.visible:not(.active){pointer-events:none}
+
+/* v0.2.45 UI cleanup, resizable sidebar, export tabs, layer descriptions */
+#app{
+  --sidebar-width:300px;
+  position:relative;
+  grid-template-columns:var(--sidebar-width) minmax(0,1fr);
+}
+.sidebar{overflow-x:hidden;min-width:0}
+.sidebar button,.sidebar input,.sidebar select{min-width:0;max-width:100%}
+.sidebar button{white-space:normal;overflow-wrap:anywhere}
+.view-button-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:7px}
+.view-button-grid button{min-height:34px;padding:7px 3px;font-size:12px}
+.button-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.drawing-node-tools{grid-template-columns:repeat(auto-fit,minmax(105px,1fr))!important}
+.drawing-layer-row{grid-template-columns:minmax(0,1fr) repeat(3,38px);max-width:100%}
+.sidebar-resize-handle{
+  position:absolute;z-index:80;top:58px;bottom:0;left:calc(var(--sidebar-width) - 4px);width:8px;
+  cursor:col-resize;touch-action:none;background:transparent;
+}
+.sidebar-resize-handle::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent}
+.sidebar-resize-handle:hover::after,.sidebar-resize-handle.dragging::after{background:var(--accent)}
+#app.sidebar-hidden .sidebar-resize-handle{display:none}
+.export-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:9px 9px 10px}
+.export-tabs button.active{background:var(--accent-soft);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.export-tab-panel[hidden]{display:none!important}
+.wide-button{width:100%}
+#drawingOverlay text.drawing-layer-label{
+  font:600 14px Segoe UI,Arial,sans-serif;fill:#20262d;stroke:#fff;stroke-width:3px;paint-order:stroke fill;
+  vector-effect:non-scaling-stroke;pointer-events:none;
+}
+#drawingOverlay text.drawing-layer-label.active-label{fill:#1677b8}
+@media(max-width:760px){
+  #app{--sidebar-width:100%;grid-template-columns:1fr}
+  .sidebar-resize-handle{display:none}
+  .view-button-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
