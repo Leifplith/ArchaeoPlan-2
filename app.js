@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.46';
+const VERSION='0.2.47';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),modelExportDialog=$('modelExportDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -108,7 +108,8 @@ function initSidebarUi(){const sidebar=document.querySelector('.sidebar');if(!si
 // ---------- 2D vector drawing sheet ----------
 let drawingActive=false,drawingTool='select',drawingObjects=[],drawingDraft=null,drawingSelectedId=null;
 let drawingSheetView=null,drawingPlanePoint=null,drawingPlaneNormal=null,drawingSheetSize={width:1,height:1};
-let drawingLayers=[{id:'layer-1',name:'Lag 1',visible:true,labelPoint:null}],drawingActiveLayerId='layer-1',drawingNextLayer=2,drawingNextObject=1;
+let drawingLayers=[{id:'layer-1',name:'Lag 1',visible:true,labelPoint:null,labelSize:14,labelColor:'#20262d',labelOutline:true,labelOutlineColor:'#ffffff'}],drawingActiveLayerId='layer-1',drawingNextLayer=2,drawingNextObject=1;
+let drawingSelectedLabelLayerId=null;
 let drawingPointerId=null,drawingDragStart=null,drawingDragOriginal=null,drawingLastClient=null;
 let drawingSelectedPointIndex=null,drawingDragMode=null,drawingPanLast=null;
 let drawingTouchPointers=new Map(),drawingPinch=null;
@@ -122,7 +123,7 @@ function releaseAllObjectUrls(){for(const u of liveObjectUrls)URL.revokeObjectUR
 // ---------- Language / i18n ----------
 const I18N={
 da:{
-  drawingSheet:'Tegneark', drawingHelp:'Et vektorlag bundet til en ortografisk visning. Start tegnearket, når planen eller profilen står rigtigt.', drawingStart:'Start tegneark', drawingClose:'Luk tegneark', drawingClear:'Ryd tegning', drawingSelect:'Vælg / flyt', drawingFreehand:'Frihånd', drawingLine:'Linje', drawingPolyline:'Polyline', drawingFinish:'Afslut polyline', drawingColor:'Farve', drawingWidth:'Tykkelse', drawingStyle:'Stregtype', drawingSolid:'Sammenhængende', drawingDashed:'Stiplet', drawingDashDot:'Streg-prik', drawingLongShort:'Lang-kort', drawingLayer:'Lagbeskrivelse', drawingNewLayer:'Ny lagbeskrivelse', drawingRenameLayer:'Redigér lagbeskrivelse', drawingDeleteLayer:'Slet lagbeskrivelse', drawingShowLayer:'Vis lag', drawingShowAll:'Vis tegning', drawingIncludeExport:'Medtag tegning i billedeksport', drawingDeleteSelected:'Slet valgt', drawingExportSvg:'Gem tegning (SVG)', drawingNone:'Intet tegneark oprettet.', drawingActiveStatus:'Tegneark aktivt – navigation er stadig tilgængelig.', drawingClosedStatus:'Tegnearket er gemt. Åbn det igen for at fortsætte.', drawingCleared:'Tegningen er ryddet.', drawingLayerPrompt:'Skriv lagbeskrivelsen (fx L98 – mørkt fyld):', drawingRenameLayerPrompt:'Redigér lagbeskrivelsen:', drawingLayerDefault:'Lag', drawingDeleteLayerConfirm:'Slet denne lagbeskrivelse og alle streger knyttet til den?', drawingClearConfirm:'Ryd hele tegningen?', drawingNoObjects:'Der er ingen vektorer at eksportere.', drawingSvgExported:'SVG-tegning gemt.', drawingNeedOrtho:'Tegnearket bruger ortografisk visning.', drawingPan:'Panorér', drawingAddNode:'Tilføj knudepunkt', drawingRemoveNode:'Fjern knudepunkt', drawingZoomIn:'Zoom ind', drawingZoomOut:'Zoom ud', drawingZoomReset:'Nulstil zoom', drawingNodeRemoved:'Knudepunkt fjernet.', drawingNodeAdded:'Knudepunkt tilføjet.', drawingNodeMin:'En linje skal have mindst to knudepunkter.', drawingCut:'✂ Klip linje', drawingCutDone:'Linjen er klippet i to.', drawingCutNeedLine:'Tryk på den linje, der skal klippes.', cleanExportMarkers:'Skjul arbejdsmarkører i billedeksport', exportGlb:'Eksportér samlet 3D-model (GLB)', modelExportReady:'3D-modellen er klar', modelExportText:'Gem den samlede synlige model som GLB.', modelExportSave:'Gem GLB', modelExportNoModels:'Der er ingen synlige modeller at eksportere.', modelExportPreparing:'Forbereder samlet 3D-model…', modelExportSaved:'Samlet 3D-model gemt.', sidebarHide:'Skjul værktøjspanel', sidebarShow:'Vis værktøjspanel', navIndicator:'Vis navigationsindikator', sectionView:'Snit', export2D:'2D eksport', export3D:'3D eksport', drawingPlaceLabel:'Placér lagtekst', drawingClearLabel:'Fjern lagtekst', drawingLabelPlaced:'Lagteksten er placeret.', drawingLabelCleared:'Lagteksten er fjernet.',
+  drawingSheet:'Tegneark', drawingHelp:'Tegn direkte i den aktuelle ortografiske visning. Nye knudepunkter hæftes til modeloverfladen, hvor modellen rammes.', drawingStart:'Start tegneark', drawingClose:'Luk tegneark', drawingClear:'Ryd tegning', drawingSelect:'Vælg / flyt', drawingFreehand:'Frihånd', drawingLine:'Linje', drawingPolyline:'Polyline', drawingFinish:'Afslut polyline', drawingColor:'Farve', drawingWidth:'Tykkelse', drawingStyle:'Stregtype', drawingSolid:'Sammenhængende', drawingDashed:'Stiplet', drawingDashDot:'Streg-prik', drawingLongShort:'Lang-kort', drawingLayer:'Lagbeskrivelse', drawingNewLayer:'Ny lagbeskrivelse', drawingRenameLayer:'Redigér lagbeskrivelse', drawingDeleteLayer:'Slet lagbeskrivelse', drawingShowLayer:'Vis lag', drawingShowAll:'Vis tegning', drawingIncludeExport:'Medtag tegning i billedeksport', drawingDeleteSelected:'Slet valgt', drawingExportSvg:'Gem tegning (SVG)', drawingNone:'Intet tegneark oprettet.', drawingActiveStatus:'Tegneark aktivt – navigation er stadig tilgængelig.', drawingClosedStatus:'Tegnearket er gemt. Åbn det igen for at fortsætte.', drawingCleared:'Tegningen er ryddet.', drawingLayerPrompt:'Skriv lagbeskrivelsen (fx L98 – mørkt fyld):', drawingRenameLayerPrompt:'Redigér lagbeskrivelsen:', drawingLayerDefault:'Lag', drawingDeleteLayerConfirm:'Slet denne lagbeskrivelse og alle streger knyttet til den?', drawingClearConfirm:'Ryd hele tegningen?', drawingNoObjects:'Der er ingen vektorer at eksportere.', drawingSvgExported:'SVG-tegning gemt.', drawingNeedOrtho:'Tegnearket bruger ortografisk visning.', drawingPan:'Panorér', drawingAddNode:'Tilføj knudepunkt', drawingRemoveNode:'Fjern knudepunkt', drawingZoomIn:'Zoom ind', drawingZoomOut:'Zoom ud', drawingZoomReset:'Nulstil zoom', drawingNodeRemoved:'Knudepunkt fjernet.', drawingNodeAdded:'Knudepunkt tilføjet.', drawingNodeMin:'En linje skal have mindst to knudepunkter.', drawingCut:'✂ Klip linje', drawingCutDone:'Linjen er klippet i to.', drawingCutNeedLine:'Tryk på den linje, der skal klippes.', cleanExportMarkers:'Skjul arbejdsmarkører i billedeksport', exportGlb:'Eksportér samlet 3D-model (GLB)', modelExportReady:'3D-modellen er klar', modelExportText:'Gem den samlede synlige model som GLB.', modelExportSave:'Gem GLB', modelExportNoModels:'Der er ingen synlige modeller at eksportere.', modelExportPreparing:'Forbereder samlet 3D-model…', modelExportSaved:'Samlet 3D-model gemt.', sidebarHide:'Skjul værktøjspanel', sidebarShow:'Vis værktøjspanel', navIndicator:'Vis navigationsindikator', sectionView:'Snit', export2D:'2D eksport', export3D:'3D eksport', drawingPlaceLabel:'Placér lagtekst', drawingClearLabel:'Fjern lagtekst', drawingLabelPlaced:'Lagteksten er placeret.', drawingLabelCleared:'Lagteksten er fjernet.', drawingLabelSize:'Tekststørrelse', drawingLabelColor:'Tekstfarve', drawingLabelOutline:'Yderlinje på bogstaver', drawingLabelOutlineColor:'Yderlinjefarve', drawingLabelMoved:'Lagteksten er flyttet.',
 
   exportPurpose:'Formål', exportSize:'Størrelse', exportPurposeScreen:'Skærm / PowerPoint', exportPurposeBook:'Bog / artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Udstilling', exportPurposeCustom:'Brugerdefineret', exportSuitScreen:'Egnet til skærm og præsentation.', exportSuitBook:'Egnet til bog og artikel.', exportSuitPoster:'Egnet til plakattryk.', exportSuitExhibition:'Egnet til stor udstillingsgrafik.', exportSuitCustom:'Brugerdefineret eksport.', advancedExport:'Avanceret…', saveImage:'Gem billede', exportSafeNote:'Store billeder tilpasses automatisk til enhedens sikre grænse. Originale teksturer bevares.',
 
@@ -193,7 +194,7 @@ da:{
   ready:'ArchaeoPlan v{version} klar.', savedToFiles:'Projektfil sendt til delearket.', downloaded:'Projektfil downloadet.'
 },
 de:{
-  drawingSheet:'Zeichenblatt', drawingHelp:'Eine Vektorebene, die an eine orthografische Ansicht gebunden ist. Starten Sie das Zeichenblatt, wenn Plan oder Profil korrekt ausgerichtet ist.', drawingStart:'Zeichenblatt starten', drawingClose:'Zeichenblatt schließen', drawingClear:'Zeichnung löschen', drawingSelect:'Auswählen / verschieben', drawingFreehand:'Freihand', drawingLine:'Linie', drawingPolyline:'Polylinie', drawingFinish:'Polylinie beenden', drawingColor:'Farbe', drawingWidth:'Stärke', drawingStyle:'Linientyp', drawingSolid:'Durchgezogen', drawingDashed:'Gestrichelt', drawingDashDot:'Strich-Punkt', drawingLongShort:'Lang-kurz', drawingLayer:'Schichtbeschreibung', drawingNewLayer:'Neue Schichtbeschreibung', drawingRenameLayer:'Schichtbeschreibung bearbeiten', drawingDeleteLayer:'Schichtbeschreibung löschen', drawingShowLayer:'Schicht anzeigen', drawingShowAll:'Zeichnung anzeigen', drawingIncludeExport:'Zeichnung im Bildexport einschließen', drawingDeleteSelected:'Auswahl löschen', drawingExportSvg:'Zeichnung speichern (SVG)', drawingNone:'Kein Zeichenblatt erstellt.', drawingActiveStatus:'Zeichenblatt aktiv – Navigation bleibt verfügbar.', drawingClosedStatus:'Das Zeichenblatt ist gespeichert. Öffnen Sie es erneut, um weiterzuarbeiten.', drawingCleared:'Zeichnung gelöscht.', drawingLayerPrompt:'Bezeichnung der neuen Einheit (z. B. A34, L98 oder SU45):', drawingRenameLayerPrompt:'Neue Bezeichnung der Einheit:', drawingLayerDefault:'Schicht', drawingDeleteLayerConfirm:'Diese Einheit und alle zugehörigen Linien löschen?', drawingClearConfirm:'Gesamte Zeichnung löschen?', drawingNoObjects:'Keine Vektoren zum Exportieren.', drawingSvgExported:'SVG-Zeichnung gespeichert.', drawingNeedOrtho:'Das Zeichenblatt verwendet die orthografische Ansicht.', drawingPan:'Verschieben', drawingAddNode:'Knotenpunkt hinzufügen', drawingRemoveNode:'Knotenpunkt entfernen', drawingZoomIn:'Hineinzoomen', drawingZoomOut:'Herauszoomen', drawingZoomReset:'Zoom zurücksetzen', drawingNodeRemoved:'Knotenpunkt entfernt.', drawingNodeAdded:'Knotenpunkt hinzugefügt.', drawingNodeMin:'Eine Linie muss mindestens zwei Knotenpunkte haben.', drawingCut:'✂ Linie schneiden', drawingCutDone:'Die Linie wurde in zwei Teile geteilt.', drawingCutNeedLine:'Klicken Sie auf die zu schneidende Linie.', cleanExportMarkers:'Arbeitsmarkierungen beim Bildexport ausblenden', exportGlb:'Zusammengeführtes 3D-Modell exportieren (GLB)', modelExportReady:'Das 3D-Modell ist bereit', modelExportText:'Das zusammengeführte sichtbare Modell als GLB speichern.', modelExportSave:'GLB speichern', modelExportNoModels:'Keine sichtbaren Modelle zum Exportieren.', modelExportPreparing:'Zusammengeführtes 3D-Modell wird vorbereitet…', modelExportSaved:'Zusammengeführtes 3D-Modell gespeichert.', sidebarHide:'Werkzeugleiste ausblenden', sidebarShow:'Werkzeugleiste anzeigen', navIndicator:'Navigationsanzeige zeigen', sectionView:'Schnitt', export2D:'2D-Export', export3D:'3D-Export', drawingPlaceLabel:'Schichttext platzieren', drawingClearLabel:'Schichttext entfernen', drawingLabelPlaced:'Schichttext platziert.', drawingLabelCleared:'Schichttext entfernt.',
+  drawingSheet:'Zeichenblatt', drawingHelp:'Direkt in der aktuellen orthografischen Ansicht zeichnen. Neue Knoten werden dort an die Modelloberfläche geheftet, wo das Modell getroffen wird.', drawingStart:'Zeichenblatt starten', drawingClose:'Zeichenblatt schließen', drawingClear:'Zeichnung löschen', drawingSelect:'Auswählen / verschieben', drawingFreehand:'Freihand', drawingLine:'Linie', drawingPolyline:'Polylinie', drawingFinish:'Polylinie beenden', drawingColor:'Farbe', drawingWidth:'Stärke', drawingStyle:'Linientyp', drawingSolid:'Durchgezogen', drawingDashed:'Gestrichelt', drawingDashDot:'Strich-Punkt', drawingLongShort:'Lang-kurz', drawingLayer:'Schichtbeschreibung', drawingNewLayer:'Neue Schichtbeschreibung', drawingRenameLayer:'Schichtbeschreibung bearbeiten', drawingDeleteLayer:'Schichtbeschreibung löschen', drawingShowLayer:'Schicht anzeigen', drawingShowAll:'Zeichnung anzeigen', drawingIncludeExport:'Zeichnung im Bildexport einschließen', drawingDeleteSelected:'Auswahl löschen', drawingExportSvg:'Zeichnung speichern (SVG)', drawingNone:'Kein Zeichenblatt erstellt.', drawingActiveStatus:'Zeichenblatt aktiv – Navigation bleibt verfügbar.', drawingClosedStatus:'Das Zeichenblatt ist gespeichert. Öffnen Sie es erneut, um weiterzuarbeiten.', drawingCleared:'Zeichnung gelöscht.', drawingLayerPrompt:'Bezeichnung der neuen Einheit (z. B. A34, L98 oder SU45):', drawingRenameLayerPrompt:'Neue Bezeichnung der Einheit:', drawingLayerDefault:'Schicht', drawingDeleteLayerConfirm:'Diese Einheit und alle zugehörigen Linien löschen?', drawingClearConfirm:'Gesamte Zeichnung löschen?', drawingNoObjects:'Keine Vektoren zum Exportieren.', drawingSvgExported:'SVG-Zeichnung gespeichert.', drawingNeedOrtho:'Das Zeichenblatt verwendet die orthografische Ansicht.', drawingPan:'Verschieben', drawingAddNode:'Knotenpunkt hinzufügen', drawingRemoveNode:'Knotenpunkt entfernen', drawingZoomIn:'Hineinzoomen', drawingZoomOut:'Herauszoomen', drawingZoomReset:'Zoom zurücksetzen', drawingNodeRemoved:'Knotenpunkt entfernt.', drawingNodeAdded:'Knotenpunkt hinzugefügt.', drawingNodeMin:'Eine Linie muss mindestens zwei Knotenpunkte haben.', drawingCut:'✂ Linie schneiden', drawingCutDone:'Die Linie wurde in zwei Teile geteilt.', drawingCutNeedLine:'Klicken Sie auf die zu schneidende Linie.', cleanExportMarkers:'Arbeitsmarkierungen beim Bildexport ausblenden', exportGlb:'Zusammengeführtes 3D-Modell exportieren (GLB)', modelExportReady:'Das 3D-Modell ist bereit', modelExportText:'Das zusammengeführte sichtbare Modell als GLB speichern.', modelExportSave:'GLB speichern', modelExportNoModels:'Keine sichtbaren Modelle zum Exportieren.', modelExportPreparing:'Zusammengeführtes 3D-Modell wird vorbereitet…', modelExportSaved:'Zusammengeführtes 3D-Modell gespeichert.', sidebarHide:'Werkzeugleiste ausblenden', sidebarShow:'Werkzeugleiste anzeigen', navIndicator:'Navigationsanzeige zeigen', sectionView:'Schnitt', export2D:'2D-Export', export3D:'3D-Export', drawingPlaceLabel:'Schichttext platzieren', drawingClearLabel:'Schichttext entfernen', drawingLabelPlaced:'Schichttext platziert.', drawingLabelCleared:'Schichttext entfernt.', drawingLabelSize:'Textgröße', drawingLabelColor:'Textfarbe', drawingLabelOutline:'Buchstabenkontur', drawingLabelOutlineColor:'Konturfarbe', drawingLabelMoved:'Schichttext verschoben.',
 
   exportPurpose:'Zweck', exportSize:'Größe', exportPurposeScreen:'Bildschirm / PowerPoint', exportPurposeBook:'Buch / Artikel', exportPurposePoster:'Plakat', exportPurposeExhibition:'Ausstellung', exportPurposeCustom:'Benutzerdefiniert', exportSuitScreen:'Geeignet für Bildschirm und Präsentation.', exportSuitBook:'Geeignet für Buch und Artikel.', exportSuitPoster:'Geeignet für Plakatdruck.', exportSuitExhibition:'Geeignet für große Ausstellungsgrafik.', exportSuitCustom:'Benutzerdefinierter Export.', advancedExport:'Erweitert…', saveImage:'Bild speichern', exportSafeNote:'Große Bilder werden automatisch an die sichere Gerätegrenze angepasst. Originaltexturen bleiben erhalten.',
 
@@ -261,7 +262,7 @@ de:{
   ready:'ArchaeoPlan v{version} bereit.', savedToFiles:'Projektdatei an das Teilen-Menü übergeben.', downloaded:'Projektdatei heruntergeladen.'
 },
 en:{
-  drawingSheet:'Drawing sheet', drawingHelp:'A vector layer tied to an orthographic view. Start the sheet when the plan or section is aligned correctly.', drawingStart:'Start drawing sheet', drawingClose:'Close drawing sheet', drawingClear:'Clear drawing', drawingSelect:'Select / move', drawingFreehand:'Freehand', drawingLine:'Line', drawingPolyline:'Polyline', drawingFinish:'Finish polyline', drawingColor:'Colour', drawingWidth:'Width', drawingStyle:'Line type', drawingSolid:'Solid', drawingDashed:'Dashed', drawingDashDot:'Dash-dot', drawingLongShort:'Long-short', drawingLayer:'Layer description', drawingNewLayer:'New layer description', drawingRenameLayer:'Edit layer description', drawingDeleteLayer:'Delete layer description', drawingShowLayer:'Show layer', drawingShowAll:'Show drawing', drawingIncludeExport:'Include drawing in image export', drawingDeleteSelected:'Delete selected', drawingExportSvg:'Save drawing (SVG)', drawingNone:'No drawing sheet created.', drawingActiveStatus:'Drawing sheet active – navigation remains available.', drawingClosedStatus:'The drawing sheet is saved. Open it again to continue.', drawingCleared:'Drawing cleared.', drawingLayerPrompt:'Identifier for new unit (e.g. A34, L98 or SU45):', drawingRenameLayerPrompt:'New identifier for the unit:', drawingLayerDefault:'Layer', drawingDeleteLayerConfirm:'Delete this unit and all lines linked to it?', drawingClearConfirm:'Clear the entire drawing?', drawingNoObjects:'There are no vectors to export.', drawingSvgExported:'SVG drawing saved.', drawingNeedOrtho:'The drawing sheet uses orthographic view.', drawingPan:'Pan', drawingAddNode:'Add node', drawingRemoveNode:'Remove node', drawingZoomIn:'Zoom in', drawingZoomOut:'Zoom out', drawingZoomReset:'Reset zoom', drawingNodeRemoved:'Node removed.', drawingNodeAdded:'Node added.', drawingNodeMin:'A line must have at least two nodes.', drawingCut:'✂ Cut line', drawingCutDone:'The line was split in two.', drawingCutNeedLine:'Click the line where it should be cut.', cleanExportMarkers:'Hide work markers in image export', exportGlb:'Export combined 3D model (GLB)', modelExportReady:'3D model is ready', modelExportText:'Save the combined visible model as GLB.', modelExportSave:'Save GLB', modelExportNoModels:'There are no visible models to export.', modelExportPreparing:'Preparing combined 3D model…', modelExportSaved:'Combined 3D model saved.', sidebarHide:'Hide tool panel', sidebarShow:'Show tool panel', navIndicator:'Show navigation indicator', sectionView:'Section', export2D:'2D export', export3D:'3D export', drawingPlaceLabel:'Place layer text', drawingClearLabel:'Remove layer text', drawingLabelPlaced:'Layer text placed.', drawingLabelCleared:'Layer text removed.',
+  drawingSheet:'Drawing sheet', drawingHelp:'Draw directly in the current orthographic view. New nodes are anchored to the model surface wherever the model is hit.', drawingStart:'Start drawing sheet', drawingClose:'Close drawing sheet', drawingClear:'Clear drawing', drawingSelect:'Select / move', drawingFreehand:'Freehand', drawingLine:'Line', drawingPolyline:'Polyline', drawingFinish:'Finish polyline', drawingColor:'Colour', drawingWidth:'Width', drawingStyle:'Line type', drawingSolid:'Solid', drawingDashed:'Dashed', drawingDashDot:'Dash-dot', drawingLongShort:'Long-short', drawingLayer:'Layer description', drawingNewLayer:'New layer description', drawingRenameLayer:'Edit layer description', drawingDeleteLayer:'Delete layer description', drawingShowLayer:'Show layer', drawingShowAll:'Show drawing', drawingIncludeExport:'Include drawing in image export', drawingDeleteSelected:'Delete selected', drawingExportSvg:'Save drawing (SVG)', drawingNone:'No drawing sheet created.', drawingActiveStatus:'Drawing sheet active – navigation remains available.', drawingClosedStatus:'The drawing sheet is saved. Open it again to continue.', drawingCleared:'Drawing cleared.', drawingLayerPrompt:'Identifier for new unit (e.g. A34, L98 or SU45):', drawingRenameLayerPrompt:'New identifier for the unit:', drawingLayerDefault:'Layer', drawingDeleteLayerConfirm:'Delete this unit and all lines linked to it?', drawingClearConfirm:'Clear the entire drawing?', drawingNoObjects:'There are no vectors to export.', drawingSvgExported:'SVG drawing saved.', drawingNeedOrtho:'The drawing sheet uses orthographic view.', drawingPan:'Pan', drawingAddNode:'Add node', drawingRemoveNode:'Remove node', drawingZoomIn:'Zoom in', drawingZoomOut:'Zoom out', drawingZoomReset:'Reset zoom', drawingNodeRemoved:'Node removed.', drawingNodeAdded:'Node added.', drawingNodeMin:'A line must have at least two nodes.', drawingCut:'✂ Cut line', drawingCutDone:'The line was split in two.', drawingCutNeedLine:'Click the line where it should be cut.', cleanExportMarkers:'Hide work markers in image export', exportGlb:'Export combined 3D model (GLB)', modelExportReady:'3D model is ready', modelExportText:'Save the combined visible model as GLB.', modelExportSave:'Save GLB', modelExportNoModels:'There are no visible models to export.', modelExportPreparing:'Preparing combined 3D model…', modelExportSaved:'Combined 3D model saved.', sidebarHide:'Hide tool panel', sidebarShow:'Show tool panel', navIndicator:'Show navigation indicator', sectionView:'Section', export2D:'2D export', export3D:'3D export', drawingPlaceLabel:'Place layer text', drawingClearLabel:'Remove layer text', drawingLabelPlaced:'Layer text placed.', drawingLabelCleared:'Layer text removed.', drawingLabelSize:'Text size', drawingLabelColor:'Text colour', drawingLabelOutline:'Letter outline', drawingLabelOutlineColor:'Outline colour', drawingLabelMoved:'Layer text moved.',
 
   exportPurpose:'Purpose', exportSize:'Size', exportPurposeScreen:'Screen / PowerPoint', exportPurposeBook:'Book / article', exportPurposePoster:'Poster', exportPurposeExhibition:'Exhibition', exportPurposeCustom:'Custom', exportSuitScreen:'Suitable for screen and presentation.', exportSuitBook:'Suitable for book and article.', exportSuitPoster:'Suitable for poster printing.', exportSuitExhibition:'Suitable for large exhibition graphics.', exportSuitCustom:'Custom export.', advancedExport:'Advanced…', saveImage:'Save image', exportSafeNote:'Large images are automatically adjusted to the device-safe limit. Original textures are preserved.',
 
@@ -329,7 +330,7 @@ en:{
   ready:'ArchaeoPlan v{version} ready.', savedToFiles:'Project file sent to the share sheet.', downloaded:'Project file downloaded.'
 },
 fr:{
-  drawingSheet:'Feuille de dessin', drawingHelp:'Un calque vectoriel lié à une vue orthographique. Démarrez la feuille lorsque le plan ou la coupe est correctement orienté.', drawingStart:'Démarrer la feuille', drawingClose:'Fermer la feuille', drawingClear:'Effacer le dessin', drawingSelect:'Sélectionner / déplacer', drawingFreehand:'Main levée', drawingLine:'Ligne', drawingPolyline:'Polyligne', drawingFinish:'Terminer la polyligne', drawingColor:'Couleur', drawingWidth:'Épaisseur', drawingStyle:'Type de ligne', drawingSolid:'Continue', drawingDashed:'Tiretée', drawingDashDot:'Tiret-point', drawingLongShort:'Long-court', drawingLayer:'Description de couche', drawingNewLayer:'Nouvelle description', drawingRenameLayer:'Modifier la description', drawingDeleteLayer:'Supprimer la description', drawingShowLayer:'Afficher la couche', drawingShowAll:'Afficher le dessin', drawingIncludeExport:'Inclure le dessin dans l’export image', drawingDeleteSelected:'Supprimer la sélection', drawingExportSvg:'Enregistrer le dessin (SVG)', drawingNone:'Aucune feuille de dessin créée.', drawingActiveStatus:'Feuille active – la navigation reste disponible.', drawingClosedStatus:'La feuille est enregistrée. Ouvrez-la à nouveau pour continuer.', drawingCleared:'Dessin effacé.', drawingLayerPrompt:'Identifiant de la nouvelle unité (p. ex. A34, L98 ou SU45) :', drawingRenameLayerPrompt:'Nouvel identifiant de l’unité :', drawingLayerDefault:'Couche', drawingDeleteLayerConfirm:'Supprimer cette unité et tous les traits qui lui sont liés ?', drawingClearConfirm:'Effacer tout le dessin ?', drawingNoObjects:'Aucun vecteur à exporter.', drawingSvgExported:'Dessin SVG enregistré.', drawingNeedOrtho:'La feuille utilise la vue orthographique.', drawingPan:'Panoramique', drawingAddNode:'Ajouter un nœud', drawingRemoveNode:'Supprimer un nœud', drawingZoomIn:'Zoom avant', drawingZoomOut:'Zoom arrière', drawingZoomReset:'Réinitialiser le zoom', drawingNodeRemoved:'Nœud supprimé.', drawingNodeAdded:'Nœud ajouté.', drawingNodeMin:'Une ligne doit comporter au moins deux nœuds.', drawingCut:'✂ Couper la ligne', drawingCutDone:'La ligne a été divisée en deux.', drawingCutNeedLine:'Touchez la ligne à l’endroit de la coupe.', cleanExportMarkers:'Masquer les repères de travail dans l’export image', exportGlb:'Exporter le modèle 3D assemblé (GLB)', modelExportReady:'Le modèle 3D est prêt', modelExportText:'Enregistrer le modèle visible assemblé au format GLB.', modelExportSave:'Enregistrer GLB', modelExportNoModels:'Aucun modèle visible à exporter.', modelExportPreparing:'Préparation du modèle 3D assemblé…', modelExportSaved:'Modèle 3D assemblé enregistré.', sidebarHide:'Masquer le panneau d’outils', sidebarShow:'Afficher le panneau d’outils', navIndicator:'Afficher l’indicateur de navigation', sectionView:'Coupe', export2D:'Export 2D', export3D:'Export 3D', drawingPlaceLabel:'Placer le texte de couche', drawingClearLabel:'Supprimer le texte de couche', drawingLabelPlaced:'Texte de couche placé.', drawingLabelCleared:'Texte de couche supprimé.',
+  drawingSheet:'Feuille de dessin', drawingHelp:'Dessinez directement dans la vue orthographique actuelle. Les nouveaux nœuds sont ancrés à la surface du modèle lorsqu’elle est touchée.', drawingStart:'Démarrer la feuille', drawingClose:'Fermer la feuille', drawingClear:'Effacer le dessin', drawingSelect:'Sélectionner / déplacer', drawingFreehand:'Main levée', drawingLine:'Ligne', drawingPolyline:'Polyligne', drawingFinish:'Terminer la polyligne', drawingColor:'Couleur', drawingWidth:'Épaisseur', drawingStyle:'Type de ligne', drawingSolid:'Continue', drawingDashed:'Tiretée', drawingDashDot:'Tiret-point', drawingLongShort:'Long-court', drawingLayer:'Description de couche', drawingNewLayer:'Nouvelle description', drawingRenameLayer:'Modifier la description', drawingDeleteLayer:'Supprimer la description', drawingShowLayer:'Afficher la couche', drawingShowAll:'Afficher le dessin', drawingIncludeExport:'Inclure le dessin dans l’export image', drawingDeleteSelected:'Supprimer la sélection', drawingExportSvg:'Enregistrer le dessin (SVG)', drawingNone:'Aucune feuille de dessin créée.', drawingActiveStatus:'Feuille active – la navigation reste disponible.', drawingClosedStatus:'La feuille est enregistrée. Ouvrez-la à nouveau pour continuer.', drawingCleared:'Dessin effacé.', drawingLayerPrompt:'Identifiant de la nouvelle unité (p. ex. A34, L98 ou SU45) :', drawingRenameLayerPrompt:'Nouvel identifiant de l’unité :', drawingLayerDefault:'Couche', drawingDeleteLayerConfirm:'Supprimer cette unité et tous les traits qui lui sont liés ?', drawingClearConfirm:'Effacer tout le dessin ?', drawingNoObjects:'Aucun vecteur à exporter.', drawingSvgExported:'Dessin SVG enregistré.', drawingNeedOrtho:'La feuille utilise la vue orthographique.', drawingPan:'Panoramique', drawingAddNode:'Ajouter un nœud', drawingRemoveNode:'Supprimer un nœud', drawingZoomIn:'Zoom avant', drawingZoomOut:'Zoom arrière', drawingZoomReset:'Réinitialiser le zoom', drawingNodeRemoved:'Nœud supprimé.', drawingNodeAdded:'Nœud ajouté.', drawingNodeMin:'Une ligne doit comporter au moins deux nœuds.', drawingCut:'✂ Couper la ligne', drawingCutDone:'La ligne a été divisée en deux.', drawingCutNeedLine:'Touchez la ligne à l’endroit de la coupe.', cleanExportMarkers:'Masquer les repères de travail dans l’export image', exportGlb:'Exporter le modèle 3D assemblé (GLB)', modelExportReady:'Le modèle 3D est prêt', modelExportText:'Enregistrer le modèle visible assemblé au format GLB.', modelExportSave:'Enregistrer GLB', modelExportNoModels:'Aucun modèle visible à exporter.', modelExportPreparing:'Préparation du modèle 3D assemblé…', modelExportSaved:'Modèle 3D assemblé enregistré.', sidebarHide:'Masquer le panneau d’outils', sidebarShow:'Afficher le panneau d’outils', navIndicator:'Afficher l’indicateur de navigation', sectionView:'Coupe', export2D:'Export 2D', export3D:'Export 3D', drawingPlaceLabel:'Placer le texte de couche', drawingClearLabel:'Supprimer le texte de couche', drawingLabelPlaced:'Texte de couche placé.', drawingLabelCleared:'Texte de couche supprimé.', drawingLabelSize:'Taille du texte', drawingLabelColor:'Couleur du texte', drawingLabelOutline:'Contour des lettres', drawingLabelOutlineColor:'Couleur du contour', drawingLabelMoved:'Texte de couche déplacé.',
 
   exportPurpose:'Usage', exportSize:'Taille', exportPurposeScreen:'Écran / PowerPoint', exportPurposeBook:'Livre / article', exportPurposePoster:'Affiche', exportPurposeExhibition:'Exposition', exportPurposeCustom:'Personnalisé', exportSuitScreen:'Adapté à l’écran et aux présentations.', exportSuitBook:'Adapté aux livres et articles.', exportSuitPoster:'Adapté à l’impression d’affiches.', exportSuitExhibition:'Adapté aux grands visuels d’exposition.', exportSuitCustom:'Export personnalisé.', advancedExport:'Avancé…', saveImage:'Enregistrer l’image', exportSafeNote:'Les grandes images sont automatiquement adaptées à la limite sûre de l’appareil. Les textures originales sont conservées.',
 
@@ -459,6 +460,7 @@ function applyLanguage(lang){
   setText('drawingSelectButton','drawingSelect');setText('drawingPanButton','drawingPan');setText('drawingFreehandButton','drawingFreehand');setText('drawingLineButton','drawingLine');setText('drawingPolylineButton','drawingPolyline');setText('drawingAddNodeButton','drawingAddNode');setText('drawingRemoveNodeButton','drawingRemoveNode');setText('drawingCutButton','drawingCut');setText('drawingFinishPolylineButton','drawingFinish');
   $('drawingZoomOutButton').title=tr('drawingZoomOut');$('drawingZoomInButton').title=tr('drawingZoomIn');$('drawingZoomResetButton').title=tr('drawingZoomReset');
   setText('drawingColorLabel','drawingColor');setText('drawingWidthLabel','drawingWidth');setText('drawingStyleLabel','drawingStyle');setText('drawingLayerLabel','drawingLayer');
+  setText('drawingLabelSizeText','drawingLabelSize');setText('drawingLabelColorText','drawingLabelColor');setText('drawingLabelOutlineText','drawingLabelOutline');setText('drawingLabelOutlineColorText','drawingLabelOutlineColor');
   setText('drawingShowLayerText','drawingShowLayer');setText('drawingPlaceLabelButton','drawingPlaceLabel');setText('drawingClearLabelButton','drawingClearLabel');setText('drawingShowAllText','drawingShowAll');setText('drawingIncludeExportText','drawingIncludeExport');setText('drawingDeleteSelectedButton','drawingDeleteSelected');setText('drawingExportSvgButton','drawingExportSvg');
   setOption('drawingStyle','solid','drawingSolid');setOption('drawingStyle','dashed','drawingDashed');setOption('drawingStyle','dashdot','drawingDashDot');setOption('drawingStyle','longshort','drawingLongShort');
   $('drawingNewLayerButton').title=tr('drawingNewLayer');$('drawingRenameLayerButton').title=tr('drawingRenameLayer');$('drawingDeleteLayerButton').title=tr('drawingDeleteLayer');
@@ -687,7 +689,7 @@ async function createUnwrapPreview(){if(!selectedModel){setStatus(tr('unwrapNeed
 function updateUnwrapBandUi(){unwrapBandOverlay.style.top=`${unwrapBandTop*100}%`;unwrapBandOverlay.style.height=`${(unwrapBandBottom-unwrapBandTop)*100}%`;$('unwrapBandInfo').textContent=(unwrapBandTop<=.001&&unwrapBandBottom>=.999)?tr('unwrapBandAll'):`${Math.round(unwrapBandTop*100)}–${Math.round(unwrapBandBottom*100)} %`}
 function attachBandHandle(handle,isTop){let active=false;const move=e=>{if(!active)return;const r=unwrapPreviewStage.getBoundingClientRect(),y=Math.max(0,Math.min(r.height,e.clientY-r.top))/Math.max(r.height,1);if(isTop)unwrapBandTop=Math.min(y,unwrapBandBottom-.03);else unwrapBandBottom=Math.max(y,unwrapBandTop+.03);updateUnwrapBandUi()};handle.addEventListener('pointerdown',e=>{active=true;handle.setPointerCapture?.(e.pointerId);move(e)});handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',()=>active=false);handle.addEventListener('pointercancel',()=>active=false)}
 async function exportUnwrapBand(full=false){if(!selectedModel){setStatus(tr('unwrapNeedModel'));return}const group=buildUnwrappedGroup();if(!group){setStatus(tr('unwrapNoGeometry'));return}try{const outW=Math.max(1000,Math.min(50000,parseInt($('unwrapWidth').value)||12000)),blob=await renderUnwrappedGroup(group,outW,full?0:unwrapBandTop,full?1:unwrapBandBottom),suffix=full?'udfoldning':'udfoldning-band',filename=`${selectedModel.name.replace(/\.[^.]+$/,'')}-${suffix}.png`;preparedFrieze={blob,filename};unwrapPreviewDialog.close();if(friezeSaveDialog?.showModal)friezeSaveDialog.showModal();setStatus(tr('friezePrepared'))}finally{disposeUnwrapGroup(group)}}
-function downloadPreparedFrieze(){if(!preparedFrieze)return;const{blob,filename}=preparedFrieze,url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);friezeSaveDialog?.close();preparedFrieze=null;setStatus(tr('unwrapDone'))}
+async function downloadPreparedFrieze(){if(!preparedFrieze)return;const{blob,filename}=preparedFrieze;try{await saveBlobToChosenLocation(blob,filename,{description:'PNG image',mime:'image/png',extension:'.png',pickerId:'archaeoplan-unwrap'});friezeSaveDialog?.close();preparedFrieze=null;setStatus(tr('unwrapDone'))}catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||String(err))}}
 async function sharePreparedFrieze(){if(!preparedFrieze)return;const{blob,filename}=preparedFrieze;try{const file=new File([blob],filename,{type:'image/png'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:'ArchaeoPlan unwrap'});friezeSaveDialog?.close();preparedFrieze=null;setStatus(tr('unwrapDone'));return}downloadPreparedFrieze()}catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(`${tr('unwrapNoGeometry')} ${err.message||err}`)}}
 
 // ---------- Plan / underlay ----------
@@ -989,8 +991,8 @@ function fitSelectedModel(){
 }
 
 function switchCamera(useOrtho){
-  const pos=camera.position.clone(),target=orbit.target.clone();orbit.dispose();transform.detach();
-  camera=useOrtho?orthographicCamera:perspectiveCamera;camera.position.copy(pos);
+  const pos=camera.position.clone(),quat=camera.quaternion.clone(),up=camera.up.clone(),target=orbit.target.clone();orbit.dispose();transform.detach();
+  camera=useOrtho?orthographicCamera:perspectiveCamera;camera.position.copy(pos);camera.quaternion.copy(quat);camera.up.copy(up);
   orbit=createOrbit(camera);orbit.target.copy(target);transform.camera=camera;
   if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!drawingActive)transform.attach(selectedModel.root);
   $('perspectiveButton').classList.toggle('active',!useOrtho);$('orthographicButton').classList.toggle('active',useOrtho);
@@ -1004,6 +1006,7 @@ function setStandardView(name){
   if(name==='top')camera.up.set(0,0,-1);
   if(name==='bottom')camera.up.set(0,0,1);
   fitCameraToBox(box,dir);
+  if(drawingActive){drawingSheetView=snapshotView();const n=orbit.target.clone().sub(camera.position).normalize();drawingPlaneNormal=n.toArray();drawingPlanePoint=orbit.target.toArray();renderDrawingOverlay()}
   setStatus(tr('centered',{name}));
 }
 
@@ -1774,22 +1777,33 @@ function drawingDashArray(type,width=2.5){
 }
 function drawingClonePoints(points){return (points||[]).map(p=>({x:p.x,y:p.y,z:p.z}))}
 function drawingObjectClone(o){return o?{...o,points:drawingClonePoints(o.points)}:null}
-function drawingLayerClone(l){return l?{...l,labelPoint:l.labelPoint?{...l.labelPoint}:null}:null}
+function normalizeDrawingLayer(l){
+  if(!l)return null;
+  return {...l,labelPoint:l.labelPoint?{...l.labelPoint}:null,labelSize:Math.max(6,Math.min(96,Number(l.labelSize)||14)),labelColor:l.labelColor||'#20262d',labelOutline:l.labelOutline!==false,labelOutlineColor:l.labelOutlineColor||'#ffffff'};
+}
+function drawingLayerClone(l){return normalizeDrawingLayer(l)}
 function drawingScreenPoint(p,cam=camera,w=null,h=null){
   const r=renderer.domElement.getBoundingClientRect(),W=w||r.width,H=h||r.height;
   const q=new THREE.Vector3(p.x,p.y,p.z).project(cam);
   return {x:(q.x*.5+.5)*W,y:(-q.y*.5+.5)*H};
 }
-function drawingWorldPointFromClient(clientX,clientY){
-  if(!drawingPlanePoint||!drawingPlaneNormal)return null;
+function drawingWorldPointFromClient(clientX,clientY,preferSurface=true){
   const r=renderer.domElement.getBoundingClientRect();
-  drawingNdc.set(((clientX-r.left)/r.width)*2-1,-((clientY-r.top)/r.height)*2+1);
+  drawingNdc.set(((clientX-r.left)/Math.max(r.width,1))*2-1,-((clientY-r.top)/Math.max(r.height,1))*2+1);
   drawingRaycaster.setFromCamera(drawingNdc,camera);
+  if(preferSurface){
+    const hits=drawingRaycaster.intersectObjects(visibleMeshes(),false);
+    for(const hit of hits){
+      if(sectionViewActive&&sectionPlane.distanceToPoint(hit.point)<-1e-7)continue;
+      return hit.point.clone();
+    }
+  }
+  if(!drawingPlanePoint||!drawingPlaneNormal)return null;
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3().fromArray(drawingPlaneNormal),new THREE.Vector3().fromArray(drawingPlanePoint));
   const hit=new THREE.Vector3();
   return drawingRaycaster.ray.intersectPlane(plane,hit)?hit:null;
 }
-function drawingWorldPointFromEvent(e){return drawingWorldPointFromClient(e.clientX,e.clientY)}
+function drawingWorldPointFromEvent(e,preferSurface=true){return drawingWorldPointFromClient(e.clientX,e.clientY,preferSurface)}
 function drawingTouchPair(){
   const pts=[...drawingTouchPointers.values()];if(pts.length<2)return null;
   const a=pts[0],b=pts[1],dx=b.x-a.x,dy=b.y-a.y;
@@ -1838,6 +1852,20 @@ function drawingZoomPercent(){
   const base=Math.max(1e-9,drawingSheetView?.zoom||1);
   return Math.round((camera.zoom/base)*100);
 }
+function drawingLabelFontSize(layer,cam=camera,outH=null){
+  const baseSize=Math.max(6,Math.min(96,Number(layer?.labelSize)||14));
+  const H=Math.max(1,outH||renderer.domElement.getBoundingClientRect().height||1);
+  if(cam?.isOrthographicCamera&&drawingSheetView?.orthoBounds){
+    const b=drawingSheetView.orthoBounds;
+    const baseWorldH=Math.max(1e-9,(b.top-b.bottom)/Math.max(drawingSheetView.zoom||1,1e-9));
+    const baseScreenH=Math.max(1,drawingSheetSize.height||H);
+    const worldTextH=baseSize*baseWorldH/baseScreenH;
+    const curWorldH=Math.max(1e-9,(cam.top-cam.bottom)/Math.max(cam.zoom||1,1e-9));
+    return Math.max(2,worldTextH*H/curWorldH);
+  }
+  return Math.max(2,baseSize*H/Math.max(1,drawingSheetSize.height||H));
+}
+function drawingLabelStrokeWidth(layer,fontSize){return Math.max(.7,fontSize*.18)}
 function updateDrawingZoomUi(){
   const b=$('drawingZoomResetButton');if(b)b.textContent=`${drawingZoomPercent()} %`;
   const disabled=!drawingActive;
@@ -1871,7 +1899,16 @@ function renderDrawingOverlay(){
     }
     if(drawingActive&&drawingDraft)drawingSvgPath(drawingDraft,preview,false);
     const ns='http://www.w3.org/2000/svg';
-    for(const layer of drawingLayers){if(layer.visible===false||!layer.labelPoint)continue;const q=drawingScreenPoint(layer.labelPoint),text=document.createElementNS(ns,'text');text.setAttribute('x',q.x);text.setAttribute('y',q.y);text.setAttribute('dominant-baseline','middle');text.classList.add('drawing-layer-label');if(layer.id===drawingActiveLayerId)text.classList.add('active-label');text.textContent=layer.name;objects.appendChild(text)}
+    for(const layer of drawingLayers){
+      if(layer.visible===false||!layer.labelPoint)continue;
+      const q=drawingScreenPoint(layer.labelPoint),text=document.createElementNS(ns,'text'),fs=drawingLabelFontSize(layer);
+      text.setAttribute('x',q.x);text.setAttribute('y',q.y);text.setAttribute('dominant-baseline','middle');text.setAttribute('font-size',fs.toFixed(2));text.setAttribute('fill',layer.labelColor||'#20262d');
+      if(layer.labelOutline!==false){text.setAttribute('stroke',layer.labelOutlineColor||'#ffffff');text.setAttribute('stroke-width',drawingLabelStrokeWidth(layer,fs).toFixed(2));text.setAttribute('paint-order','stroke fill')}
+      else{text.setAttribute('stroke','none')}
+      text.dataset.labelLayerId=layer.id;text.classList.add('drawing-layer-label');
+      if(layer.id===drawingActiveLayerId)text.classList.add('active-label');if(layer.id===drawingSelectedLabelLayerId)text.classList.add('selected-label');
+      text.textContent=layer.name;objects.appendChild(text)
+    }
   }
   const sel=drawingActive&&drawingVisible?drawingObjects.find(o=>o.id===drawingSelectedId):null;if(sel&&drawingLayer(sel.layerId)?.visible!==false&&['select','addnode','removenode','cut'].includes(drawingTool)){
     const ns='http://www.w3.org/2000/svg';
@@ -1882,7 +1919,7 @@ function renderDrawingOverlay(){
       selection.appendChild(c);
     }
   }
-  $('drawingDeleteSelectedButton').disabled=!drawingSelectedId;updateDrawingZoomUi();
+  $('drawingDeleteSelectedButton').disabled=!(drawingSelectedId||drawingSelectedLabelLayerId);updateDrawingZoomUi();
 }
 function updateDrawingUi(){
   const section=$('drawingSection');if(!section)return;
@@ -1890,7 +1927,7 @@ function updateDrawingUi(){
   section.classList.toggle('drawing-active',drawingActive);
   for(const [id,tool] of [['drawingSelectButton','select'],['drawingPanButton','pan'],['drawingFreehandButton','freehand'],['drawingLineButton','line'],['drawingPolylineButton','polyline'],['drawingAddNodeButton','addnode'],['drawingRemoveNodeButton','removenode'],['drawingCutButton','cut'],['drawingPlaceLabelButton','label']])$(id)?.classList.toggle('active',drawingTool===tool);
   $('drawingFinishPolylineButton').disabled=!(drawingDraft?.type==='polyline'&&drawingDraft.points.length>=2);
-  $('drawingDeleteSelectedButton').disabled=!drawingSelectedId;
+  $('drawingDeleteSelectedButton').disabled=!(drawingSelectedId||drawingSelectedLabelLayerId);
   const status=$('drawingStatus');if(status)status.textContent=drawingActive?tr('drawingActiveStatus'):(drawingSheetView?tr('drawingClosedStatus'):tr('drawingNone'));
   if($('drawingVisible'))$('drawingVisible').checked=drawingVisible;
   rebuildDrawingLayers();renderDrawingOverlay();updateDrawingZoomUi();
@@ -1898,7 +1935,10 @@ function updateDrawingUi(){
 function setDrawingInteractionLock(on){
   const ids=['perspectiveButton','orthographicButton','fitModelButton','translateButton','rotateButton','lockButton','measureButton','freehandCropButton','polygonCropButton','startCropButton','unwrapStartButton','unwrapEndButton','unwrapSelectAreaButton','unwrapFullButton','unwrapReverseButton','sectionViewButton'];
   for(const id of ids){const el=$(id);if(el)el.disabled=!!on}
-  document.querySelectorAll('[data-view]').forEach(b=>b.disabled=!!on);
+  // Standardvisningerne skal også kunne vælges mens Tegneark er åbent, så
+  // Visning og Tegneark aldrig får hver sin orientering.
+  document.querySelectorAll('[data-view]').forEach(b=>b.disabled=false);
+  if($('sectionViewButton'))$('sectionViewButton').disabled=false;
   if(!on)updateCropButtons();
 }
 function applyDrawingCameraView(s){
@@ -1912,20 +1952,20 @@ function startDrawingSheet(){
   if(drawingActive){stopDrawingSheet();return}
   cancelCrop();if(measureMode){measureMode=false;$('measureButton').classList.remove('active')}clearMeasurement();
   if(unwrapAreaMode)clearUnwrapArea();unwrapPickMode=null;
-  if(!drawingSheetView){
-    if(!camera.isOrthographicCamera){switchCamera(true);setStatus(tr('drawingNeedOrtho'))}
-    drawingSheetView=snapshotView();
-    drawingSheetSize={width:Math.max(1,renderer.domElement.getBoundingClientRect().width),height:Math.max(1,renderer.domElement.getBoundingClientRect().height)};
-    const n=orbit.target.clone().sub(camera.position).normalize();drawingPlaneNormal=n.toArray();drawingPlanePoint=orbit.target.toArray();
-  }else applyDrawingCameraView(drawingSheetView);
-  drawingActive=true;drawingVisible=true;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDraft=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;setDrawingInteractionLock(true);updateDrawingUi();setStatus(tr('drawingActiveStatus'));
+  if(!camera.isOrthographicCamera){switchCamera(true);setStatus(tr('drawingNeedOrtho'))}
+  // Tegnearket følger altid den aktuelle Visning. Et gammelt tegneark må ikke
+  // dreje kameraet tilbage til den orientering, hvor det oprindeligt blev lavet.
+  if(!drawingSheetView)drawingSheetSize={width:Math.max(1,renderer.domElement.getBoundingClientRect().width),height:Math.max(1,renderer.domElement.getBoundingClientRect().height)};
+  drawingSheetView=snapshotView();
+  const n=orbit.target.clone().sub(camera.position).normalize();drawingPlaneNormal=n.toArray();drawingPlanePoint=orbit.target.toArray();
+  drawingActive=true;drawingVisible=true;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;drawingDraft=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;transform.detach();orbit.enabled=false;orbit.enableRotate=false;orbit.enablePan=false;orbit.enableZoom=false;setDrawingInteractionLock(true);updateDrawingUi();setStatus(tr('drawingActiveStatus'));
 }
 function stopDrawingSheet(){
-  if(!drawingActive)return;finishDrawingPolyline(false);drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;
+  if(!drawingActive)return;finishDrawingPolyline(false);drawingSheetView=snapshotView();drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;
   orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);if(selectedModel&&!selectedModel.root.userData.locked&&!cropMode&&!measureMode&&!drawingActive)transform.attach(selectedModel.root);updateDrawingUi();setStatus(tr('drawingClosedStatus'));
 }
 function setDrawingTool(tool){
-  if(drawingDraft?.type==='polyline')finishDrawingPolyline(false);drawingTool=tool;drawingDraft=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;updateDrawingUi();
+  if(drawingDraft?.type==='polyline')finishDrawingPolyline(false);drawingTool=tool;drawingDraft=null;if(tool!=='select')drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;updateDrawingUi();
 }
 function drawingCurrentStyle(){return{stroke:$('drawingColor').value||'#d7191c',width:Math.max(.5,parseFloat($('drawingWidth').value)||2.5),style:$('drawingStyle').value||'solid',layerId:drawingActiveLayerId}}
 function drawingCommitObject(obj,push=true){
@@ -1992,14 +2032,13 @@ function cutDrawingAtEvent(e){
   pushHistory({label:'klip vektor',undo:()=>{const li=drawingObjects.findIndex(o=>o.id===leftObj.id),ri=drawingObjects.findIndex(o=>o.id===rightObj.id);const at=li>=0?li:(ri>=0?ri:index);drawingObjects=drawingObjects.filter(o=>o.id!==leftObj.id&&o.id!==rightObj.id);drawingObjects.splice(Math.min(at,drawingObjects.length),0,drawingObjectClone(before));drawingSelectedId=before.id;drawingSelectedPointIndex=null;renderDrawingOverlay()},redo:()=>{const oi=drawingObjects.findIndex(o=>o.id===before.id);if(oi>=0)drawingObjects.splice(oi,1,drawingObjectClone(leftObj),drawingObjectClone(rightObj));drawingSelectedId=rightObj.id;drawingSelectedPointIndex=0;renderDrawingOverlay()}});
   renderDrawingOverlay();setStatus(tr('drawingCutDone'));
 }
-function placeDrawingLayerLabelAtEvent(e){const layer=drawingLayer(drawingActiveLayerId),world=drawingWorldPointFromEvent(e);if(!layer||!world)return;const before=layer.labelPoint?{...layer.labelPoint}:null,after={x:world.x,y:world.y,z:world.z},id=layer.id;layer.labelPoint=after;pushHistory({label:'placér lagtekst',undo:()=>{const l=drawingLayer(id);if(l)l.labelPoint=before?{...before}:null;renderDrawingOverlay()},redo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...after};renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingLabelPlaced'));setDrawingTool('select')}
-function clearDrawingLayerLabel(){const layer=drawingLayer(drawingActiveLayerId);if(!layer?.labelPoint)return;const before={...layer.labelPoint},id=layer.id;layer.labelPoint=null;pushHistory({label:'fjern lagtekst',undo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...before};renderDrawingOverlay()},redo:()=>{const l=drawingLayer(id);if(l)l.labelPoint=null;renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingLabelCleared'))}
+function placeDrawingLayerLabelAtEvent(e){const layer=drawingLayer(drawingActiveLayerId),world=drawingWorldPointFromEvent(e,false);if(!layer||!world)return;const before=layer.labelPoint?{...layer.labelPoint}:null,after={x:world.x,y:world.y,z:world.z},id=layer.id;layer.labelPoint=after;drawingSelectedLabelLayerId=layer.id;drawingSelectedId=null;pushHistory({label:'placér lagtekst',undo:()=>{const l=drawingLayer(id);if(l)l.labelPoint=before?{...before}:null;renderDrawingOverlay()},redo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...after};renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingLabelPlaced'));setDrawingTool('select')}
+function clearDrawingLayerLabel(){const layer=drawingLayer(drawingActiveLayerId);if(!layer?.labelPoint)return;const before={...layer.labelPoint},id=layer.id;layer.labelPoint=null;if(drawingSelectedLabelLayerId===id)drawingSelectedLabelLayerId=null;pushHistory({label:'fjern lagtekst',undo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...before};renderDrawingOverlay()},redo:()=>{const l=drawingLayer(id);if(l)l.labelPoint=null;renderDrawingOverlay()}});renderDrawingOverlay();setStatus(tr('drawingLabelCleared'))}
 function drawingPointerDown(e){
-  if(!drawingActive)return;e.preventDefault();e.stopPropagation();
-  if(e.pointerType==='mouse'&&e.button===1){
-    const world=drawingWorldPointFromEvent(e);if(!world)return;drawingPointerId=e.pointerId;try{$('drawingOverlay').setPointerCapture?.(e.pointerId)}catch(_){ }drawingDragMode='pan-middle';drawingPanLast=world.clone();return;
-  }
+  if(!drawingActive)return;
+  // Midter- og højre museknap tilhører altid den globale navigation.
   if(e.pointerType==='mouse'&&e.button!==0)return;
+  e.preventDefault();e.stopPropagation();
   if(e.pointerType==='touch'){
     drawingTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
     try{$('drawingOverlay').setPointerCapture?.(e.pointerId)}catch(_){ }
@@ -2014,6 +2053,12 @@ function drawingPointerDown(e){
   drawingPointerId=e.pointerId;$('drawingOverlay').setPointerCapture?.(e.pointerId);
   if(drawingTool==='pan'){drawingDragMode='pan';drawingPanLast=world.clone();return}
   if(drawingTool==='select'){
+    const labelId=e.target?.dataset?.labelLayerId;
+    if(labelId&&drawingLayer(labelId)?.labelPoint){
+      drawingSelectedLabelLayerId=labelId;drawingActiveLayerId=labelId;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDragMode='label';
+      const lp=drawingLayer(labelId).labelPoint;drawingDragOriginal={x:lp.x,y:lp.y,z:lp.z};drawingDragStart=drawingWorldPointFromEvent(e,false);rebuildDrawingLayers();renderDrawingOverlay();return;
+    }
+    drawingSelectedLabelLayerId=null;
     const nodeHit=drawingNodeHitTest(e);if(nodeHit){drawingSelectedId=nodeHit.object.id;drawingSelectedPointIndex=nodeHit.pointIndex;drawingDragMode='node';drawingDragOriginal=drawingClonePoints(nodeHit.object.points);renderDrawingOverlay();return}
     const segHit=drawingSegmentHitTest(e);drawingSelectedId=segHit?.object?.id||null;drawingSelectedPointIndex=null;if(segHit){drawingDragMode='object';drawingDragStart=world.clone();drawingDragOriginal=drawingClonePoints(segHit.object.points)}else{drawingDragMode=null;drawingDragOriginal=null}renderDrawingOverlay();return;
   }
@@ -2029,8 +2074,11 @@ function drawingPointerMove(e){
     drawingTouchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(drawingPinch||drawingTouchPointers.size>=2){e.preventDefault();if(!drawingPinch)beginDrawingPinch();updateDrawingPinch();return}
   }
-  if(drawingPinch||e.pointerId!==drawingPointerId)return;e.preventDefault();const world=drawingWorldPointFromEvent(e);if(!world)return;
-  if((drawingDragMode==='pan'||drawingDragMode==='pan-middle')&&drawingPanLast){const d=drawingPanLast.clone().sub(world);camera.position.add(d);orbit.target.add(d);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();return}
+  if(drawingPinch||e.pointerId!==drawingPointerId)return;e.preventDefault();const world=drawingWorldPointFromEvent(e,!['label','pan'].includes(drawingDragMode));if(!world)return;
+  if(drawingDragMode==='pan'&&drawingPanLast){const d=drawingPanLast.clone().sub(world);camera.position.add(d);orbit.target.add(d);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();return}
+  if(drawingTool==='select'&&drawingDragMode==='label'&&drawingSelectedLabelLayerId&&drawingDragOriginal&&drawingDragStart){
+    const layer=drawingLayer(drawingSelectedLabelLayerId),planeWorld=drawingWorldPointFromEvent(e,false);if(!layer||!planeWorld)return;const d=planeWorld.clone().sub(drawingDragStart);layer.labelPoint={x:drawingDragOriginal.x+d.x,y:drawingDragOriginal.y+d.y,z:drawingDragOriginal.z+d.z};renderDrawingOverlay();return;
+  }
   if(drawingTool==='select'&&drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId);if(!o)return;
     if(drawingDragMode==='node'&&Number.isInteger(drawingSelectedPointIndex)){o.points=drawingClonePoints(drawingDragOriginal);o.points[drawingSelectedPointIndex]={x:world.x,y:world.y,z:world.z};renderDrawingOverlay();return}
     if(drawingDragMode==='object'&&drawingDragStart){const d=world.clone().sub(drawingDragStart);o.points=drawingDragOriginal.map(p=>({x:p.x+d.x,y:p.y+d.y,z:p.z+d.z}));renderDrawingOverlay();return}
@@ -2048,9 +2096,10 @@ function drawingPointerUp(e){
     if(drawingPinch){e.preventDefault();if(drawingTouchPointers.size<2)drawingPinch=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;renderDrawingOverlay();return}
   }
   if(e.pointerId!==drawingPointerId)return;e.preventDefault();try{$('drawingOverlay').releasePointerCapture?.(e.pointerId)}catch(_){ }drawingPointerId=null;
-  if(drawingDragMode==='pan'||drawingDragMode==='pan-middle'){drawingDragMode=null;drawingPanLast=null;return}
+  if(drawingDragMode==='pan'){drawingDragMode=null;drawingPanLast=null;return}
   if(drawingTool==='select'){
-    if(drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId),before=drawingClonePoints(drawingDragOriginal),after=drawingClonePoints(o?.points);if(o&&JSON.stringify(before)!==JSON.stringify(after)){const id=o.id,label=drawingDragMode==='node'?'flyt knudepunkt':'flyt vektor';pushHistory({label,undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);renderDrawingOverlay()}})}}drawingDragStart=null;drawingDragOriginal=null;drawingDragMode=null;return;
+    if(drawingDragMode==='label'&&drawingSelectedLabelLayerId&&drawingDragOriginal){const layer=drawingLayer(drawingSelectedLabelLayerId),before={...drawingDragOriginal},after=layer?.labelPoint?{...layer.labelPoint}:null,id=drawingSelectedLabelLayerId;if(layer&&after&&JSON.stringify(before)!==JSON.stringify(after)){pushHistory({label:'flyt lagtekst',undo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...before};renderDrawingOverlay()},redo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...after};renderDrawingOverlay()}});setStatus(tr('drawingLabelMoved'))}}
+    else if(drawingSelectedId&&drawingDragOriginal){const o=drawingObjects.find(x=>x.id===drawingSelectedId),before=drawingClonePoints(drawingDragOriginal),after=drawingClonePoints(o?.points);if(o&&JSON.stringify(before)!==JSON.stringify(after)){const id=o.id,label=drawingDragMode==='node'?'flyt knudepunkt':'flyt vektor';pushHistory({label,undo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(before);renderDrawingOverlay()},redo:()=>{const q=drawingObjects.find(x=>x.id===id);if(q)q.points=drawingClonePoints(after);renderDrawingOverlay()}})}}drawingDragStart=null;drawingDragOriginal=null;drawingDragMode=null;return;
   }
   if(drawingDraft&&drawingDraft.type!=='polyline'){const draft=drawingDraft;drawingDraft=null;drawingLastClient=null;drawingCommitObject(draft,true);updateDrawingUi()}
 }
@@ -2058,47 +2107,44 @@ function finishDrawingPolyline(commit=true){
   if(!drawingDraft||drawingDraft.type!=='polyline')return;if(commit&&drawingDraft.points.length>=2)drawingCommitObject(drawingDraft,true);drawingDraft=null;drawingPointerId=null;updateDrawingUi();
 }
 function deleteSelectedDrawing(){
+  if(drawingSelectedLabelLayerId){const id=drawingSelectedLabelLayerId,layer=drawingLayer(id);if(!layer?.labelPoint)return;const before={...layer.labelPoint};layer.labelPoint=null;drawingSelectedLabelLayerId=null;pushHistory({label:'slet lagtekst',undo:()=>{const l=drawingLayer(id);if(l)l.labelPoint={...before};renderDrawingOverlay()},redo:()=>{const l=drawingLayer(id);if(l)l.labelPoint=null;renderDrawingOverlay()}});renderDrawingOverlay();updateDrawingUi();return}
   const i=drawingObjects.findIndex(o=>o.id===drawingSelectedId);if(i<0)return;const saved=drawingObjectClone(drawingObjects[i]);drawingObjects.splice(i,1);drawingSelectedId=null;drawingSelectedPointIndex=null;pushHistory({label:'slet vektor',undo:()=>{drawingObjects.splice(Math.min(i,drawingObjects.length),0,drawingObjectClone(saved));renderDrawingOverlay()},redo:()=>{drawingObjects=drawingObjects.filter(o=>o.id!==saved.id);renderDrawingOverlay()}});renderDrawingOverlay();updateDrawingUi();
 }
 function clearDrawing(){
-  const hadLabels=drawingLayers.some(l=>l.labelPoint);if(!drawingObjects.length&&!hadLabels&&!drawingSheetView)return;if((drawingObjects.length||hadLabels)&&!confirm(tr('drawingClearConfirm')))return;const before=drawingObjects.map(drawingObjectClone),beforeLabels=drawingLayers.map(l=>({id:l.id,labelPoint:l.labelPoint?{...l.labelPoint}:null})),view=drawingSheetView?JSON.parse(JSON.stringify(drawingSheetView)):null,pp=drawingPlanePoint?[...drawingPlanePoint]:null,pn=drawingPlaneNormal?[...drawingPlaneNormal]:null,size={...drawingSheetSize};drawingObjects=[];for(const l of drawingLayers)l.labelPoint=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDraft=null;
+  const hadLabels=drawingLayers.some(l=>l.labelPoint);if(!drawingObjects.length&&!hadLabels&&!drawingSheetView)return;if((drawingObjects.length||hadLabels)&&!confirm(tr('drawingClearConfirm')))return;const before=drawingObjects.map(drawingObjectClone),beforeLabels=drawingLayers.map(l=>({id:l.id,labelPoint:l.labelPoint?{...l.labelPoint}:null})),view=drawingSheetView?JSON.parse(JSON.stringify(drawingSheetView)):null,pp=drawingPlanePoint?[...drawingPlanePoint]:null,pn=drawingPlaneNormal?[...drawingPlaneNormal]:null,size={...drawingSheetSize};drawingObjects=[];for(const l of drawingLayers)l.labelPoint=null;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;drawingDraft=null;
   if(before.length||hadLabels)pushHistory({label:'ryd tegning',undo:()=>{drawingObjects=before.map(drawingObjectClone);drawingSheetView=view;drawingPlanePoint=pp;drawingPlaneNormal=pn;drawingSheetSize=size;for(const x of beforeLabels){const l=drawingLayer(x.id);if(l)l.labelPoint=x.labelPoint?{...x.labelPoint}:null}renderDrawingOverlay();updateDrawingUi()},redo:()=>{drawingObjects=[];for(const l of drawingLayers)l.labelPoint=null;drawingSelectedId=null;renderDrawingOverlay();updateDrawingUi()}});renderDrawingOverlay();setStatus(tr('drawingCleared'));updateDrawingUi();
 }
 function rebuildDrawingLayers(){
   const select=$('drawingLayerSelect');if(!select)return;const old=drawingActiveLayerId;select.innerHTML='';for(const l of drawingLayers){const o=document.createElement('option');o.value=l.id;o.textContent=l.name;select.appendChild(o)}if(drawingLayer(old))drawingActiveLayerId=old;else drawingActiveLayerId=drawingLayers[0]?.id||null;if(drawingActiveLayerId)select.value=drawingActiveLayerId;const layer=drawingLayer(drawingActiveLayerId);$('drawingLayerVisible').checked=layer?.visible!==false;$('drawingRenameLayerButton').disabled=!layer;$('drawingDeleteLayerButton').disabled=drawingLayers.length<=1;if($('drawingClearLabelButton'))$('drawingClearLabelButton').disabled=!layer?.labelPoint;
+  if($('drawingLabelSize'))$('drawingLabelSize').value=String(layer?.labelSize||14);if($('drawingLabelColor'))$('drawingLabelColor').value=layer?.labelColor||'#20262d';if($('drawingLabelOutline'))$('drawingLabelOutline').checked=layer?.labelOutline!==false;if($('drawingLabelOutlineColor')){$('drawingLabelOutlineColor').value=layer?.labelOutlineColor||'#ffffff';$('drawingLabelOutlineColor').disabled=layer?.labelOutline===false}
 }
-function newDrawingLayer(){const name=prompt(tr('drawingLayerPrompt'),`${tr('drawingLayerDefault')} ${drawingNextLayer}`);if(name===null)return;const l={id:`layer-${drawingNextLayer++}`,name:name.trim()||`${tr('drawingLayerDefault')} ${drawingNextLayer-1}`,visible:true,labelPoint:null};drawingLayers.push(l);drawingActiveLayerId=l.id;rebuildDrawingLayers();renderDrawingOverlay()}
+function newDrawingLayer(){const name=prompt(tr('drawingLayerPrompt'),`${tr('drawingLayerDefault')} ${drawingNextLayer}`);if(name===null)return;const l={id:`layer-${drawingNextLayer++}`,name:name.trim()||`${tr('drawingLayerDefault')} ${drawingNextLayer-1}`,visible:true,labelPoint:null,labelSize:14,labelColor:'#20262d',labelOutline:true,labelOutlineColor:'#ffffff'};drawingLayers.push(l);drawingActiveLayerId=l.id;rebuildDrawingLayers();renderDrawingOverlay()}
 function renameDrawingLayer(){
   const layer=drawingLayer(drawingActiveLayerId);if(!layer)return;const before=layer.name;const requested=prompt(tr('drawingRenameLayerPrompt'),before);if(requested===null)return;const after=requested.trim();if(!after||after===before)return;const id=layer.id;layer.name=after;pushHistory({label:'omdøb enhed',undo:()=>{const l=drawingLayer(id);if(l){l.name=before;rebuildDrawingLayers();renderDrawingOverlay()}},redo:()=>{const l=drawingLayer(id);if(l){l.name=after;rebuildDrawingLayers();renderDrawingOverlay()}}});rebuildDrawingLayers();renderDrawingOverlay();
 }
 function deleteDrawingLayer(){
-  if(drawingLayers.length<=1)return;const id=drawingActiveLayerId;if(!confirm(tr('drawingDeleteLayerConfirm')))return;const li=drawingLayers.findIndex(l=>l.id===id),layer=drawingLayerClone(drawingLayers[li]),removed=drawingObjects.filter(o=>o.layerId===id).map(drawingObjectClone);drawingLayers.splice(li,1);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[Math.max(0,li-1)].id;drawingSelectedId=null;drawingSelectedPointIndex=null;pushHistory({label:'slet enhed',undo:()=>{drawingLayers.splice(Math.min(li,drawingLayers.length),0,drawingLayerClone(layer));drawingObjects.push(...removed.map(drawingObjectClone));drawingActiveLayerId=layer.id;rebuildDrawingLayers();renderDrawingOverlay()},redo:()=>{drawingLayers=drawingLayers.filter(l=>l.id!==id);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[0]?.id||null;rebuildDrawingLayers();renderDrawingOverlay()}});rebuildDrawingLayers();renderDrawingOverlay();
+  if(drawingLayers.length<=1)return;const id=drawingActiveLayerId;if(!confirm(tr('drawingDeleteLayerConfirm')))return;const li=drawingLayers.findIndex(l=>l.id===id),layer=drawingLayerClone(drawingLayers[li]),removed=drawingObjects.filter(o=>o.layerId===id).map(drawingObjectClone);drawingLayers.splice(li,1);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[Math.max(0,li-1)].id;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;pushHistory({label:'slet enhed',undo:()=>{drawingLayers.splice(Math.min(li,drawingLayers.length),0,drawingLayerClone(layer));drawingObjects.push(...removed.map(drawingObjectClone));drawingActiveLayerId=layer.id;rebuildDrawingLayers();renderDrawingOverlay()},redo:()=>{drawingLayers=drawingLayers.filter(l=>l.id!==id);drawingObjects=drawingObjects.filter(o=>o.layerId!==id);drawingActiveLayerId=drawingLayers[0]?.id||null;rebuildDrawingLayers();renderDrawingOverlay()}});rebuildDrawingLayers();renderDrawingOverlay();
 }
 function setDrawingLayerVisibility(v){const l=drawingLayer(drawingActiveLayerId);if(l){l.visible=!!v;if(!l.visible&&drawingObjects.find(o=>o.id===drawingSelectedId)?.layerId===l.id){drawingSelectedId=null;drawingSelectedPointIndex=null;}renderDrawingOverlay()}}
 function drawingProjectData(){return{sheetView:drawingSheetView?JSON.parse(JSON.stringify(drawingSheetView)):null,planePoint:drawingPlanePoint?[...drawingPlanePoint]:null,planeNormal:drawingPlaneNormal?[...drawingPlaneNormal]:null,sheetSize:{...drawingSheetSize},objects:drawingObjects.map(drawingObjectClone),layers:drawingLayers.map(drawingLayerClone),activeLayerId:drawingActiveLayerId,nextLayer:drawingNextLayer,nextObject:drawingNextObject,visible:drawingVisible,includeExport:$('drawingIncludeExport')?.checked!==false}}
 function restoreDrawingProjectData(d){
-  drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;drawingSheetView=d?.sheetView||null;drawingPlanePoint=d?.planePoint||null;drawingPlaneNormal=d?.planeNormal||null;drawingSheetSize=d?.sheetSize||{width:1,height:1};drawingObjects=Array.isArray(d?.objects)?d.objects.map(drawingObjectClone):[];drawingLayers=Array.isArray(d?.layers)&&d.layers.length?d.layers.map(drawingLayerClone):[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true,labelPoint:null}];for(const l of drawingLayers){if(/^Enhed \d+$/.test(l.name||''))l.name=(l.name||'').replace(/^Enhed /,'Lag ');if(!('labelPoint' in l))l.labelPoint=null;}drawingActiveLayerId=drawingLayer(d?.activeLayerId)?.id||drawingLayers[0].id;drawingNextLayer=d?.nextLayer||drawingLayers.length+1;drawingNextObject=d?.nextObject||drawingObjects.length+1;drawingVisible=d?.visible!==false;if($('drawingVisible'))$('drawingVisible').checked=drawingVisible;if($('drawingIncludeExport'))$('drawingIncludeExport').checked=d?.includeExport!==false;setDrawingInteractionLock(false);updateDrawingUi();
+  drawingActive=false;drawingDraft=null;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;drawingPointerId=null;drawingDragMode=null;drawingPanLast=null;drawingTouchPointers.clear();drawingPinch=null;drawingSheetView=d?.sheetView||null;drawingPlanePoint=d?.planePoint||null;drawingPlaneNormal=d?.planeNormal||null;drawingSheetSize=d?.sheetSize||{width:1,height:1};drawingObjects=Array.isArray(d?.objects)?d.objects.map(drawingObjectClone):[];drawingLayers=Array.isArray(d?.layers)&&d.layers.length?d.layers.map(drawingLayerClone):[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true,labelPoint:null,labelSize:14,labelColor:'#20262d',labelOutline:true,labelOutlineColor:'#ffffff'}];for(let i=0;i<drawingLayers.length;i++){drawingLayers[i]=normalizeDrawingLayer(drawingLayers[i]);const l=drawingLayers[i];if(/^Enhed \d+$/.test(l.name||''))l.name=(l.name||'').replace(/^Enhed /,'Lag ');if(!('labelPoint' in l))l.labelPoint=null;}drawingActiveLayerId=drawingLayer(d?.activeLayerId)?.id||drawingLayers[0].id;drawingNextLayer=d?.nextLayer||drawingLayers.length+1;drawingNextObject=d?.nextObject||drawingObjects.length+1;drawingVisible=d?.visible!==false;if($('drawingVisible'))$('drawingVisible').checked=drawingVisible;if($('drawingIncludeExport'))$('drawingIncludeExport').checked=d?.includeExport!==false;setDrawingInteractionLock(false);updateDrawingUi();
 }
-function resetDrawingProject(){drawingActive=false;drawingTool='select';drawingObjects=[];drawingDraft=null;drawingSelectedId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=null;drawingPlanePoint=null;drawingPlaneNormal=null;drawingSheetSize={width:1,height:1};drawingLayers=[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true,labelPoint:null}];drawingActiveLayerId='layer-1';drawingNextLayer=2;drawingNextObject=1;drawingPointerId=null;drawingTouchPointers.clear();drawingPinch=null;drawingVisible=true;if($('drawingVisible'))$('drawingVisible').checked=true;orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);updateDrawingUi()}
+function resetDrawingProject(){drawingActive=false;drawingTool='select';drawingObjects=[];drawingDraft=null;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;drawingDragMode=null;drawingPanLast=null;drawingSheetView=null;drawingPlanePoint=null;drawingPlaneNormal=null;drawingSheetSize={width:1,height:1};drawingLayers=[{id:'layer-1',name:`${tr('drawingLayerDefault')} 1`,visible:true,labelPoint:null,labelSize:14,labelColor:'#20262d',labelOutline:true,labelOutlineColor:'#ffffff'}];drawingActiveLayerId='layer-1';drawingNextLayer=2;drawingNextObject=1;drawingPointerId=null;drawingTouchPointers.clear();drawingPinch=null;drawingVisible=true;if($('drawingVisible'))$('drawingVisible').checked=true;orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;setDrawingInteractionLock(false);updateDrawingUi()}
 function drawingCameraForSvg(){
-  if(!drawingSheetView?.orthoBounds)return null;const b=drawingSheetView.orthoBounds,c=new THREE.OrthographicCamera(b.left,b.right,b.top,b.bottom,drawingSheetView.near??-1e7,drawingSheetView.far??1e7);c.position.fromArray(drawingSheetView.position);c.quaternion.fromArray(drawingSheetView.quaternion);c.up.fromArray(drawingSheetView.up);c.zoom=drawingSheetView.zoom||1;c.updateProjectionMatrix();c.updateMatrixWorld(true);return c;
+  const source=camera.isOrthographicCamera?snapshotView():drawingSheetView;if(!source?.orthoBounds)return null;const b=source.orthoBounds,c=new THREE.OrthographicCamera(b.left,b.right,b.top,b.bottom,source.near??-1e7,source.far??1e7);c.position.fromArray(source.position);c.quaternion.fromArray(source.quaternion);c.up.fromArray(source.up);c.zoom=source.zoom||1;c.updateProjectionMatrix();c.updateMatrixWorld(true);return c;
 }
 function drawingSvgString(){
-  const hasLabels=drawingLayers.some(l=>l.visible!==false&&l.labelPoint);if(!drawingObjects.length&&!hasLabels)return null;const cam=drawingCameraForSvg();if(!cam)return null;const W=Math.max(1,Math.round(drawingSheetSize.width||1000)),H=Math.max(1,Math.round(drawingSheetSize.height||1000));const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');let body='';for(const l of drawingLayers){if(l.visible===false)continue;const paths=drawingObjects.filter(o=>o.layerId===l.id);if(!paths.length&&!l.labelPoint)continue;body+=`<g id="${esc(l.id)}" data-layer="${esc(l.name)}">`;for(const o of paths){const d=drawingPathData(o.points,cam,W,H),dash=drawingDashArray(o.style,o.width);body+=`<path d="${d}" fill="none" stroke="${esc(o.stroke)}" stroke-width="${o.width}" stroke-linecap="round" stroke-linejoin="round"${dash?` stroke-dasharray="${dash}"`:''}/>`}if(l.labelPoint){const q=drawingScreenPoint(l.labelPoint,cam,W,H);body+=`<text x="${q.x.toFixed(2)}" y="${q.y.toFixed(2)}" font-family="Arial,sans-serif" font-size="14" font-weight="600" fill="#20262d">${esc(l.name)}</text>`}body+='</g>'}return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
+  const hasLabels=drawingLayers.some(l=>l.visible!==false&&l.labelPoint);if(!drawingObjects.length&&!hasLabels)return null;const cam=drawingCameraForSvg();if(!cam)return null;const W=Math.max(1,Math.round(drawingSheetSize.width||1000)),H=Math.max(1,Math.round(drawingSheetSize.height||1000));const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');let body='';for(const l of drawingLayers){if(l.visible===false)continue;const paths=drawingObjects.filter(o=>o.layerId===l.id);if(!paths.length&&!l.labelPoint)continue;body+=`<g id="${esc(l.id)}" data-layer="${esc(l.name)}">`;for(const o of paths){const d=drawingPathData(o.points,cam,W,H),dash=drawingDashArray(o.style,o.width);body+=`<path d="${d}" fill="none" stroke="${esc(o.stroke)}" stroke-width="${o.width}" stroke-linecap="round" stroke-linejoin="round"${dash?` stroke-dasharray="${dash}"`:''}/>`}if(l.labelPoint){const q=drawingScreenPoint(l.labelPoint,cam,W,H),fs=drawingLabelFontSize(l,cam,H),stroke=l.labelOutline!==false?` stroke="${esc(l.labelOutlineColor||'#ffffff')}" stroke-width="${drawingLabelStrokeWidth(l,fs).toFixed(2)}" paint-order="stroke fill"`:'';body+=`<text x="${q.x.toFixed(2)}" y="${q.y.toFixed(2)}" font-family="Arial,sans-serif" font-size="${fs.toFixed(2)}" font-weight="600" fill="${esc(l.labelColor||'#20262d')}"${stroke}>${esc(l.name)}</text>`}body+='</g>'}return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
 }
 async function exportDrawingSvg(){
   const svg=drawingSvgString();if(!svg){setStatus(tr('drawingNoObjects'));return}
   const blob=new Blob([svg],{type:'image/svg+xml'}),filename=`ArchaeoPlan-tegning-${new Date().toISOString().slice(0,10)}.svg`;
-  try{
-    if(window.showSaveFilePicker){
-      const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'SVG vector drawing',accept:{'image/svg+xml':['.svg']}}]});
-      const writable=await handle.createWritable();await writable.write(blob);await writable.close();setStatus(tr('drawingSvgExported'));return;
-    }
-    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setStatus(tr('drawingSvgExported'));
-  }catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||String(err))}
+  try{await saveBlobToChosenLocation(blob,filename,{description:'SVG vector drawing',mime:'image/svg+xml',extension:'.svg',pickerId:'archaeoplan-svg'});setStatus(tr('drawingSvgExported'))}
+  catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||String(err))}
 }
 function drawDrawingOnCanvas(ctx,outW,outH){
-  if(!$('drawingIncludeExport')?.checked||(!drawingObjects.length&&!drawingLayers.some(l=>l.visible!==false&&l.labelPoint)))return;const r=renderer.domElement.getBoundingClientRect(),sx=outW/Math.max(r.width,1),sy=outH/Math.max(r.height,1),scale=(sx+sy)/2;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';for(const o of drawingObjects){const l=drawingLayer(o.layerId);if(l&&l.visible===false)continue;const pts=o.points.map(p=>drawingScreenPoint(p,camera,outW,outH));if(pts.length<2)continue;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.strokeStyle=o.stroke||'#d7191c';ctx.lineWidth=Math.max(.5,(o.width||2.5)*scale);const dash=drawingDashArray(o.style,o.width).split(/\s+/).filter(Boolean).map(Number).map(v=>v*scale);ctx.setLineDash(dash);ctx.stroke()}for(const l of drawingLayers){if(l.visible===false||!l.labelPoint)continue;const q=drawingScreenPoint(l.labelPoint,camera,outW,outH),fs=Math.max(10,14*scale);ctx.setLineDash([]);ctx.font=`600 ${fs}px sans-serif`;ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=Math.max(2,3*scale);ctx.strokeStyle='white';ctx.fillStyle='#20262d';ctx.strokeText(l.name,q.x,q.y);ctx.fillText(l.name,q.x,q.y)}ctx.restore();
+  if(!$('drawingIncludeExport')?.checked||(!drawingObjects.length&&!drawingLayers.some(l=>l.visible!==false&&l.labelPoint)))return;const r=renderer.domElement.getBoundingClientRect(),sx=outW/Math.max(r.width,1),sy=outH/Math.max(r.height,1),scale=(sx+sy)/2;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';for(const o of drawingObjects){const l=drawingLayer(o.layerId);if(l&&l.visible===false)continue;const pts=o.points.map(p=>drawingScreenPoint(p,camera,outW,outH));if(pts.length<2)continue;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.strokeStyle=o.stroke||'#d7191c';ctx.lineWidth=Math.max(.5,(o.width||2.5)*scale);const dash=drawingDashArray(o.style,o.width).split(/\s+/).filter(Boolean).map(Number).map(v=>v*scale);ctx.setLineDash(dash);ctx.stroke()}for(const l of drawingLayers){if(l.visible===false||!l.labelPoint)continue;const q=drawingScreenPoint(l.labelPoint,camera,outW,outH),fs=drawingLabelFontSize(l,camera,outH);ctx.setLineDash([]);ctx.font=`600 ${fs}px sans-serif`;ctx.textBaseline='middle';ctx.lineJoin='round';ctx.fillStyle=l.labelColor||'#20262d';if(l.labelOutline!==false){ctx.lineWidth=drawingLabelStrokeWidth(l,fs);ctx.strokeStyle=l.labelOutlineColor||'#ffffff';ctx.strokeText(l.name,q.x,q.y)}ctx.fillText(l.name,q.x,q.y)}ctx.restore();
 }
 
 
@@ -2109,7 +2155,7 @@ function drawingCameraSignature(){
   return [camera.isOrthographicCamera?'o':'p',p.x,p.y,p.z,q.x,q.y,q.z,q.w,camera.zoom,camera.left,camera.right,camera.top,camera.bottom,camera.fov].map(v=>typeof v==='number'?v.toFixed(7):v).join('|');
 }
 function refreshDrawingOverlayIfCameraChanged(){
-  if(!(drawingActive||(drawingVisible&&drawingSheetView&&drawingObjects.length)))return;
+  if(!(drawingActive||(drawingVisible&&drawingSheetView&&(drawingObjects.length||drawingLayers.some(l=>l.labelPoint)))))return;
   const sig=drawingCameraSignature();if(sig!==drawingLastCameraSignature){drawingLastCameraSignature=sig;renderDrawingOverlay()}
 }
 
@@ -2151,11 +2197,12 @@ function globalMousePan(dx,dy){
 }
 function globalMouseRotate(dx,dy){
   const r=renderer.domElement.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height),target=orbit.target.clone(),offset=camera.position.clone().sub(target);if(offset.lengthSq()<1e-12)return;
-  const yaw=-dx*Math.PI*2/w,pitch=-dy*Math.PI/h,up=camera.up.clone().normalize();
-  offset.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(up,yaw));
-  const forward=offset.clone().multiplyScalar(-1).normalize(),right=new THREE.Vector3().crossVectors(forward,up).normalize();
-  if(right.lengthSq()>1e-10){const candidate=offset.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(right,pitch)),newForward=candidate.clone().multiplyScalar(-1).normalize();if(Math.abs(newForward.dot(up))<.995)offset.copy(candidate)}
-  camera.position.copy(target).add(offset);camera.lookAt(target);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();updateMeasureLabel();updateExportAnnotations();
+  const yaw=-dx*Math.PI*2/w,pitch=-dy*Math.PI/h,worldUp=new THREE.Vector3(0,1,0);
+  // Vandret træk = egentlig drejning rundt om modellens lodrette verdensakse.
+  offset.applyAxisAngle(worldUp,yaw);
+  const viewDir=offset.clone().normalize(),right=new THREE.Vector3().crossVectors(worldUp,viewDir).normalize();
+  if(right.lengthSq()>1e-10){const candidate=offset.clone().applyAxisAngle(right,pitch),n=candidate.clone().normalize();if(Math.abs(n.dot(worldUp))<.998)offset.copy(candidate)}
+  camera.position.copy(target).add(offset);camera.up.copy(worldUp);camera.lookAt(target);camera.updateMatrixWorld(true);orbit.update();renderDrawingOverlay();updateMeasureLabel();updateExportAnnotations();
 }
 function globalMousePointerDown(e){
   if(e.pointerType!=='mouse'||(e.button!==1&&e.button!==2)||globalMouseNavBlocked())return;
@@ -2688,14 +2735,9 @@ async function renderExportBlob(){
 }
 
 async function savePng(){
-  let restoreView=null;
   try{
-    // A drawing sheet belongs to its captured orthographic view. If the sheet
-    // is closed, use that view temporarily for a correctly aligned export.
-    if(!drawingActive&&drawingSheetView&&drawingObjects.length&&$('drawingIncludeExport')?.checked){
-      restoreView=snapshotView();
-      applyDrawingCameraView(drawingSheetView);
-    }
+    // Tegning og model eksporteres i den aktuelle Visning. Tegnearket må ikke
+    // skifte kameraet tilbage til en ældre skjult orientering.
     setStatus('Forbereder billede…');
     const blob=await renderExportBlob();
     if(!blob)return;
@@ -2708,8 +2750,6 @@ async function savePng(){
   }catch(err){
     console.error(err);
     setStatus(err?.message||'Billedeksport mislykkedes.');
-  }finally{
-    if(restoreView)applyViewState(restoreView);
   }
 }
 async function shareImage(){
@@ -2719,21 +2759,22 @@ async function shareImage(){
 
 
 
-function downloadPreparedImage(){
-  if(!preparedImage)return;
-  const {blob,filename}=preparedImage;
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
-  imageSaveDialog?.close();
-  preparedImage=null;
-  setStatus(tr('pngExported'));
+async function saveBlobToChosenLocation(blob,filename,{description='File',mime='application/octet-stream',extension='',pickerId='archaeoplan-save',shareTitle='ArchaeoPlan'}={}){
+  if(window.showSaveFilePicker){
+    const accept={};accept[mime]=extension?[extension]:[];
+    const handle=await window.showSaveFilePicker({id:pickerId,suggestedName:filename,types:[{description,accept}]});
+    const writable=await handle.createWritable();await writable.write(blob);await writable.close();return 'picker';
+  }
+  const file=new File([blob],filename,{type:mime});
+  if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:shareTitle});return 'share'}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);return 'download';
 }
+async function savePreparedImage(){
+  if(!preparedImage)return;const {blob,filename}=preparedImage;
+  try{await saveBlobToChosenLocation(blob,filename,{description:'PNG image',mime:'image/png',extension:'.png',pickerId:'archaeoplan-images'});imageSaveDialog?.close();preparedImage=null;setStatus(tr('pngExported'))}
+  catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||tr('imageFallback'))}
+}
+function downloadPreparedImage(){return savePreparedImage()}
 async function sharePreparedImage(){
   if(!preparedImage)return;
   const {blob,filename}=preparedImage;
@@ -2849,8 +2890,7 @@ async function prepareCombinedGlbExport(){
 async function savePreparedGlb(){
   if(!preparedModelExport)return;const {blob,filename}=preparedModelExport;
   try{
-    if(window.showSaveFilePicker){const handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'GLB 3D model',accept:{'model/gltf-binary':['.glb']}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close()}
-    else{const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
+    await saveBlobToChosenLocation(blob,filename,{description:'GLB 3D model',mime:'model/gltf-binary',extension:'.glb',pickerId:'archaeoplan-glb'});
     modelExportDialog?.close();preparedModelExport=null;setStatus(tr('modelExportSaved'));
   }catch(err){if(err?.name==='AbortError')return;console.error(err);setStatus(err?.message||String(err))}
 }
@@ -2950,40 +2990,9 @@ async function savePreparedProject(){
   if(!preparedProject)return;
   const {blob,filename}=preparedProject;
   try{
-    if(window.showSaveFilePicker){
-      const handle=await window.showSaveFilePicker({
-        suggestedName:filename,
-        types:[{description:'ArchaeoPlan project',accept:{'application/zip':['.archaeoplan']}}]
-      });
-      const writable=await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      projectSaveDialog?.close();
-      preparedProject=null;
-      setStatus(tr('projectSaved',{name:filename}));
-      return;
-    }
-
-    const file=new File([blob],filename,{type:'application/zip'});
-    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share({files:[file],title:'ArchaeoPlan'});
-      projectSaveDialog?.close();
-      preparedProject=null;
-      setStatus(tr('savedToFiles'));
-      return;
-    }
-
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),5000);
-    projectSaveDialog?.close();
-    preparedProject=null;
-    setStatus(tr('downloaded'));
+    const mode=await saveBlobToChosenLocation(blob,filename,{description:'ArchaeoPlan project',mime:'application/zip',extension:'.archaeoplan',pickerId:'archaeoplan-project'});
+    projectSaveDialog?.close();preparedProject=null;
+    setStatus(mode==='share'?tr('savedToFiles'):tr('projectSaved',{name:filename}));
   }catch(err){
     if(err?.name==='AbortError')return;
     console.error(err);
@@ -3188,17 +3197,21 @@ $('drawingZoomResetButton').onclick=resetDrawingZoom;
 $('drawingFinishPolylineButton').onclick=()=>finishDrawingPolyline(true);
 $('drawingDeleteSelectedButton').onclick=deleteSelectedDrawing;
 $('drawingExportSvgButton').onclick=exportDrawingSvg;
-$('drawingLayerSelect').onchange=e=>{drawingActiveLayerId=e.target.value;drawingSelectedId=null;drawingSelectedPointIndex=null;rebuildDrawingLayers();renderDrawingOverlay()};
+$('drawingLayerSelect').onchange=e=>{drawingActiveLayerId=e.target.value;drawingSelectedId=null;drawingSelectedLabelLayerId=null;drawingSelectedPointIndex=null;rebuildDrawingLayers();renderDrawingOverlay()};
 $('drawingNewLayerButton').onclick=newDrawingLayer;
 $('drawingRenameLayerButton').onclick=renameDrawingLayer;
 $('drawingDeleteLayerButton').onclick=deleteDrawingLayer;
 $('drawingLayerVisible').onchange=e=>setDrawingLayerVisibility(e.target.checked);
+$('drawingLabelSize').onchange=e=>{const l=drawingLayer(drawingActiveLayerId);if(l){l.labelSize=Math.max(6,Math.min(96,Number(e.target.value)||14));e.target.value=l.labelSize;renderDrawingOverlay()}};
+$('drawingLabelColor').oninput=e=>{const l=drawingLayer(drawingActiveLayerId);if(l){l.labelColor=e.target.value;renderDrawingOverlay()}};
+$('drawingLabelOutline').onchange=e=>{const l=drawingLayer(drawingActiveLayerId);if(l){l.labelOutline=e.target.checked;$('drawingLabelOutlineColor').disabled=!l.labelOutline;renderDrawingOverlay()}};
+$('drawingLabelOutlineColor').oninput=e=>{const l=drawingLayer(drawingActiveLayerId);if(l){l.labelOutlineColor=e.target.value;renderDrawingOverlay()}};
 $('drawingVisible').onchange=e=>setDrawingVisibility(e.target.checked);
 $('drawingOverlay').addEventListener('pointerdown',drawingPointerDown,{passive:false});
 $('drawingOverlay').addEventListener('pointermove',drawingPointerMove,{passive:false});
 $('drawingOverlay').addEventListener('pointerup',drawingPointerUp,{passive:false});
 $('drawingOverlay').addEventListener('pointercancel',drawingPointerUp,{passive:false});
-$('drawingOverlay').addEventListener('wheel',e=>{if(!drawingActive)return;e.preventDefault();drawingZoom(e.deltaY<0?1.18:1/1.18)},{passive:false});
+$('drawingOverlay').addEventListener('wheel',e=>{if(!drawingActive)return;globalMouseWheel(e)},{passive:false});
 $('drawingOverlay').addEventListener('contextmenu',e=>e.preventDefault());
 $('drawingOverlay').addEventListener('auxclick',e=>{if(drawingActive&&e.button===1)e.preventDefault()});
 
