@@ -11,7 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net
 // ArchaeoPlan 0.2.12-clean
 // Cleanup release based directly on the tested 0.2.11 behavior.
 
-const VERSION='0.2.45';
+const VERSION='0.2.46';
 const $=id=>document.getElementById(id);
 const viewport=$('viewport'),status=$('status'),fileInput=$('fileInput'),projectInput=$('projectInput'),underlayInput=$('underlayInput'),modelList=$('modelList'),languageSelect=$('languageSelect'),projectSaveDialog=$('projectSaveDialog'),friezeSaveDialog=$('friezeSaveDialog'),imageSaveDialog=$('imageSaveDialog'),modelExportDialog=$('modelExportDialog'),unwrapPreviewDialog=$('unwrapPreviewDialog'),unwrapPreviewStage=$('unwrapPreviewStage'),unwrapPreviewImage=$('unwrapPreviewImage'),unwrapBandOverlay=$('unwrapBandOverlay');
 const cropInputLayer=$('cropInputLayer'),cropOverlay=$('cropOverlay'),cropLine=$('cropLine'),cropPolygon=$('cropPolygon'),cropPointsGroup=$('cropPoints'),cropHint=$('cropHint');
@@ -851,7 +851,47 @@ function resetViewToOrigin(useOrtho=camera.isOrthographicCamera){
 
 function applySectionClippingToRoot(root){if(!root)return;root.traverse(obj=>{if(!obj.isMesh)return;const mats=Array.isArray(obj.material)?obj.material:[obj.material];for(const m of mats){if(!m)continue;m.clippingPlanes=sectionViewActive?[sectionPlane]:null;m.clipIntersection=false;m.needsUpdate=true}})}
 function refreshSectionClipping(){for(const m of models)applySectionClippingToRoot(m.root);$('sectionViewButton')?.classList.toggle('active',sectionViewActive)}
-function toggleSectionView(){sectionViewActive=!sectionViewActive;if(sectionViewActive){const normal=camera.position.clone().sub(orbit.target).normalize();sectionPlane.setFromNormalAndCoplanarPoint(normal,orbit.target)}refreshSectionClipping();setStatus(sectionViewActive?'Snit aktivt – modellen er kun midlertidigt skjult på den ene side.':'Snit slået fra.') }
+function sectionReferenceBox(){
+  if(selectedModel?.root?.visible){const b=selectedModelWorldBox();if(b)return b}
+  const b=new THREE.Box3();let ok=false;
+  for(const m of models){if(!m.root.visible)continue;m.root.updateWorldMatrix(true,true);const mb=new THREE.Box3().setFromObject(m.root,true);if(!mb.isEmpty()){b.union(mb);ok=true}}
+  return ok?b:null;
+}
+function sectionViewDirection(){
+  // A section must be vertical. Use the current viewing direction projected
+  // onto the horizontal XZ plane. From Top/Bottom there is no horizontal
+  // component, so use the screen-up direction as the section direction.
+  let dir=orbit.target.clone().sub(camera.position);
+  dir.y=0;
+  if(dir.lengthSq()<1e-8){
+    dir=camera.up.clone();
+    dir.y=0;
+  }
+  if(dir.lengthSq()<1e-8)dir.set(0,0,-1);
+  return dir.normalize();
+}
+function toggleSectionView(){
+  if(sectionViewActive){
+    sectionViewActive=false;
+    refreshSectionClipping();
+    setStatus('Snit slået fra.');
+    return;
+  }
+  const box=sectionReferenceBox();
+  if(!box){setStatus(tr('noModelFit'));return}
+  const center=box.getCenter(new THREE.Vector3());
+  const viewDir=sectionViewDirection();
+
+  // Keep the half of the model behind the cut plane relative to the viewer.
+  // This exposes a vertical profile instead of clipping at ground/grid level.
+  sectionPlane.setFromNormalAndCoplanarPoint(viewDir,center);
+  sectionViewActive=true;
+  refreshSectionClipping();
+
+  if(!camera.isOrthographicCamera)switchCamera(true);
+  fitCameraToBox(box,viewDir.clone().negate());
+  setStatus('Snit aktivt – lodret profil gennem modellens centrum. Tryk Snit igen for at vise hele modellen.');
+}
 function framingBox(){
   const candidates=selectedModel&&selectedModel.root.visible?[selectedModel]:models.filter(m=>m.root.visible);
   const box=new THREE.Box3();let ok=false;

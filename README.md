@@ -1,4 +1,4 @@
-# ArchaeoPlan v0.2.45
+# ArchaeoPlan v0.2.46
 
 Denne udgave er en oprydningsversion baseret direkte på den testede og fungerende v0.2.11.
 
@@ -340,7 +340,7 @@ Bemærk: Under en allerede påbegyndt skærmbaseret beskærings-/områdekontur l
 - De nye handlinger understøtter undo/redo, hvor det er relevant.
 
 
-## v0.2.45 — UI-oprydning, lagbeskrivelser og snit
+## v0.2.46 — UI-oprydning, lagbeskrivelser og snit
 - **Visning** og **Valgt model** er samlet i samme værktøjsgruppe.
 - Standardvisningsknapperne har ens størrelse, og **Snit** er tilføjet som ekstra visningsknap. Snit bruger et midlertidigt clipping-plan gennem den aktuelle visnings centrum og ændrer ikke modeldata.
 - **Vis navigationsindikator** slår akseindikatoren til/fra og gemmes i projektet.
@@ -352,3 +352,8 @@ Bemærk: Under en allerede påbegyndt skærmbaseret beskærings-/områdekontur l
 
 ### Bemærkning om Snit
 Snit er i denne første version en enkel visningsfunktion: den skjuler midlertidigt geometrien på den ene side af et plan gennem det aktuelle visningscentrum. Modellen beskæres ikke permanent.
+
+
+## v0.2.46
+- Retter Snit: lodret, reversibelt profilsnit gennem den valgte models centrum.
+- Snit skifter til ortografisk profilvisning og ændrer ikke originalgeometrien.
